@@ -17,9 +17,23 @@ Via: the official Google Form (link published at 14:00). Your agent can fill it 
 1. Draft the problem statement and solution from your repo and chat history — you review and tighten.
 2. Deploy the app somewhere public. Nothing to deploy means the completeness criterion (20 pts) collapses.
 3. Smoke-test your own URL before submitting: does it load? Do the main buttons work? The jury runs the same check automatically.
-4. Generate the demo video: script a walkthrough (problem → solution → live demo → impact, ≤3 min), drive the app while screen-recording, narrate with TTS, add captions, export.
-5. Fill the Form (fields + entry IDs below), you approve, it submits.
-6. Watch your team channel — jurors may ask up to three clarification questions, each with a 10-minute response window, until 16:15. Answer fast; unanswered questions are dropped.
+4. Fill the Form (fields + entry IDs below), you approve, it submits.
+5. Watch your team channel — jurors may ask up to three clarification questions, each with a 10-minute response window, until 16:15. Answer fast; unanswered questions are dropped.
+
+## Demo video — recorded by a human
+
+The demo video is a human job (decided 2026-08-16): one person, one screen recording, ≤3 minutes.
+
+```
+1. Plan (2 minutes, on paper): problem → solution → live demo → impact
+2. Record: screen-record yourself clicking through the live app —
+   show the main flow end-to-end, then one edge case
+3. Narrate while you click (or add voiceover after)
+4. Keep it under 3 minutes hard; no fancy editing needed
+5. Upload unlisted (YouTube / Loom / Drive view link), paste into the Form
+```
+
+Your agent may draft the shot list for you — but the recording, clicking, and talking are human.
 
 ## Honesty rules
 
@@ -30,13 +44,3 @@ Via: the official Google Form (link published at 14:00). Your agent can fill it 
 ## Form fields and entry-ID mapping (published at 14:00)
 
 See specs/form-spec.md — entry IDs are filled in once the form exists and posted here + in your team channel.
-
-## Demo-video recipe
-
-```
-1. Shot list (60 sec to write): problem → solution → live demo → impact
-2. Record: agent drives the app in a browser, screen-record the main flow + one edge case
-3. Narrate: TTS over the script; keep it under 3 minutes hard
-4. Captions + labels for each feature shown
-5. Export, upload unlisted, paste the link in the Form
-```
