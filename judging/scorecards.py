@@ -11,6 +11,35 @@ CRITERIA_LABELS = {
 EVENT_TITLE = "Devin x Claw Collective x Qwen Hackathon — 23 August 2026"
 
 
+def split_scorecards(results: list[dict]) -> dict:
+    sections = {}
+    ranked = sorted(results, key=lambda e: e.get("rank", 10**6))
+    for entry in ranked:
+        team_number = entry["team_number"]
+        blocks = [
+            f"Hi {entry.get('captain_contact') or 'captain'}, here is "
+            f"{entry.get('team_name') or f'Team {team_number}'}'s (Team {team_number}) scorecard "
+            f"from the Devin x Claw Collective x Qwen Hackathon preliminary round, 23 August 2026.",
+            "",
+            f"Result: {entry.get('status', 'scored')} - rank {entry.get('rank', '-')} of {len(ranked)}.",
+            "",
+            "Panel averages (three-judge panel, scored out of 60):",
+        ]
+        averages = entry.get("averages", {})
+        for criterion in CRITERIA:
+            blocks.append(f"- {CRITERIA_LABELS[criterion]}: {averages.get(criterion, '-')}")
+        blocks.append(f"- Total: {averages.get('total', '-')} / 60")
+        blocks.append("")
+        if entry.get("evidence_notes"):
+            blocks.append("What the panel cited:")
+            for note in entry["evidence_notes"][:8]:
+                blocks.append(f"- {note}")
+            blocks.append("")
+        blocks.append("Thanks for building with us. See you at the next OpenClaw KL event.")
+        sections[team_number] = "\n".join(blocks)
+    return sections
+
+
 def compile_scorecards(results: list[dict]) -> str:
     lines = [
         f"# Private scorecards — {EVENT_TITLE}",

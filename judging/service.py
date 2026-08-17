@@ -11,8 +11,9 @@ from .evidence import build_evidence_bundle
 from .qwen_client import MockQwenClient, QwenClient
 from .sanitize import sanitize_submission
 from .schema import BlindScoreValidator
-from .scorecards import compile_scorecards
+from .scorecards import compile_scorecards, split_scorecards
 from .smoke_test import smoke_test
+from .state import RunState
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -112,6 +113,9 @@ def run_pipeline(args) -> int:
     client = build_client(config, args.mock)
     board = Blackboard()
 
+    state = RunState(Path(args.out) / "state.json")
+    previous = {str(e["team_number"]): e for e in state.previous_results()}
+
     intake = board.load_intake(args.intake)
     intake = board.dedupe_latest(intake)
     if args.team is not None:
@@ -122,6 +126,12 @@ def run_pipeline(args) -> int:
 
     results = []
     for submission in intake:
+        team_key = str(submission.get("team_number"))
+        if team_key in previous and not state.needs_scoring(submission):
+            results.append(previous[team_key])
+            print(f"team {submission.get('team_number'):>3} | unchanged, reusing prior scores", flush=True)
+            continue
+
         entry = judge_submission(
             submission,
             config,
@@ -131,6 +141,7 @@ def run_pipeline(args) -> int:
             validator,
             skip_network=args.skip_network,
         )
+        state.mark_scored(submission)
         results.append(entry)
         print(
             f"team {entry['team_number']:>3} | valid {entry['valid_scores']}/3 | "
@@ -151,6 +162,11 @@ def run_pipeline(args) -> int:
     )
 
     scorecards = compile_scorecards(ranked)
+
+    from .foreman import write_foreman_artifacts
+
+    write_foreman_artifacts(ranked, shortlist, args.out)
+    state.save(ranked)
 
     report = {
         "mode": "mock" if args.mock else "live",
@@ -176,9 +192,28 @@ def run_pipeline(args) -> int:
     board.write_scorecards(scorecards, out_dir / "scorecards.md")
     board.write_report(report, out_dir / "report.json")
 
+    delivery_dir = out_dir / "delivery"
+    delivery_dir.mkdir(parents=True, exist_ok=True)
+    for team_number, message in split_scorecards(ranked).items():
+        (delivery_dir / f"scorecard_team_{team_number:02d}.txt").write_text(message + "\n")
+
     print(f"\nshortlist: {report['shortlist']}")
     print(f"alternates: {report['alternates']}")
     print(f"outputs written to {out_dir.resolve()}")
+    return 0
+
+
+def poll_pipeline(args) -> int:
+    cycles = 0
+    while True:
+        cycles += 1
+        print(f"--- poll cycle {cycles} ---", flush=True)
+        status = run_pipeline(args)
+        if status != 0:
+            return status
+        if args.cycles and cycles >= args.cycles:
+            break
+        time.sleep(args.every)
     return 0
 
 
@@ -194,9 +229,21 @@ def main() -> int:
     run_parser.add_argument("--skip-network", action="store_true", help="skip URL smoke tests")
     run_parser.add_argument("--team", type=int, default=None, help="canary mode: process only this team number")
 
+    poll_parser = sub.add_parser("poll", help="loop run over a growing intake file (streaming mode)")
+    poll_parser.add_argument("--intake", required=True)
+    poll_parser.add_argument("--config", default=str(REPO_ROOT / "config.json"))
+    poll_parser.add_argument("--out", default=str(REPO_ROOT / "out"))
+    poll_parser.add_argument("--mock", action="store_true")
+    poll_parser.add_argument("--skip-network", action="store_true")
+    poll_parser.add_argument("--every", type=int, default=300, help="seconds between polls (default 300)")
+    poll_parser.add_argument("--cycles", type=int, default=0, help="stop after N cycles; 0 = run forever")
+    poll_parser.add_argument("--team", type=int, default=None)
+
     args = parser.parse_args()
     if args.command == "run":
         return run_pipeline(args)
+    if args.command == "poll":
+        return poll_pipeline(args)
     return 1
 
 

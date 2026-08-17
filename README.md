@@ -45,16 +45,27 @@ pip install -r requirements.txt
 # end-to-end dry run, mock jurors, local files
 python3 -m judging.service run --intake tests/dummy_submissions.json --mock
 
+# streaming mode: re-run every 5 min as intake grows (day-of engine)
+python3 -m judging.service poll --intake tests/dummy_submissions.json --mock --every 300
+
 # real Qwen calls (needs QWEN_API_KEY)
 export QWEN_API_KEY=...
 python3 -m judging.service run --intake tests/dummy_submissions.json
 ```
 
-Outputs land in `out/`: `judging.json`, `shortlist.json`, `scorecards.md`, `report.json`.
+Outputs land in `out/`:
+
+- `judging.json` — full results with blind scores, averages, spread, flags
+- `shortlist.json` — top six + two alternates + eliminated
+- `scorecards.md` — compiled scorecard document
+- `delivery/` — one paste-ready scorecard per team for manual sending
+- `foreman/` — post-ready artifacts for the Foreman: courtroom case headers (with scores), #live-feed mirrors (scores stripped), verdict lines, and the top-six announcement
+- `state.json` — incremental state: unchanged submissions are never re-scored; resubmissions are detected by content hash
+- `report.json` — run summary
 
 ## Blackboard
 
-Local mode writes JSON files (sole writer = the service). The Sheets adapter interface is `judging.blackboard.Blackboard`; wiring gspread + service-account credentials is a provisioning step (see `specs/sheet-spec.md`).
+Local mode writes JSON files (sole writer = the service). `judging.sheets.SheetsBlackboard` is the provisioned adapter for the Google Sheet blackboard (tabs per `specs/sheet-spec.md`); it activates once `gspread`, a service-account JSON, and the spreadsheet id are in place. Until then it raises a clear provisioning error.
 
 ## Key parameters (config.json)
 

@@ -33,5 +33,9 @@
       "juror_three": "prompts/juror_three.md"
     },
     "foreman_prompt": "prompts/foreman.md"
+  },
+  "sheets": {
+    "credentials_path": "",
+    "spreadsheet_id": ""
   }
 }
