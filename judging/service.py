@@ -1,0 +1,204 @@
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+
+from .aggregate import average_scores, build_shortlist, juror_spread, rank_teams
+from .blackboard import Blackboard
+from .dispatch import dispatch_to_panel
+from .evidence import build_evidence_bundle
+from .qwen_client import MockQwenClient, QwenClient
+from .sanitize import sanitize_submission
+from .schema import BlindScoreValidator
+from .scorecards import compile_scorecards
+from .smoke_test import smoke_test
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def load_config(config_path: str) -> dict:
+    return json.loads(Path(config_path).read_text())
+
+
+def load_prompts(config: dict) -> tuple[str, dict[str, str], str]:
+    rubric = (REPO_ROOT / config["paths"]["rubric_prompt"]).read_text()
+    juror_prompts = {
+        juror: (REPO_ROOT / path).read_text()
+        for juror, path in config["paths"]["juror_prompts"].items()
+    }
+    foreman = ""
+    foreman_path = config["paths"].get("foreman_prompt")
+    if foreman_path and (REPO_ROOT / foreman_path).exists():
+        foreman = (REPO_ROOT / foreman_path).read_text()
+    return rubric, juror_prompts, foreman
+
+
+def build_client(config: dict, mock: bool):
+    if mock:
+        return MockQwenClient()
+    return QwenClient.from_config(config["qwen"], timebox_sec=config["dispatch"]["timebox_sec"])
+
+
+def judge_submission(
+    submission: dict,
+    config: dict,
+    client,
+    rubric: str,
+    juror_prompts: dict[str, str],
+    validator: BlindScoreValidator,
+    skip_network: bool = False,
+) -> dict:
+    started = time.monotonic()
+    sanitized, sanitization_flags = sanitize_submission(submission, config["limits"])
+
+    if skip_network:
+        url_evidence = {
+            "submitted_url": submission.get("project_url", ""),
+            "reachable": None,
+            "flags": ["smoke_test_skipped"],
+            "signals": [],
+            "smoke_note": "Smoke test skipped in offline run.",
+        }
+    else:
+        url_evidence = smoke_test(
+            submission.get("project_url", ""),
+            timeout_sec=config["smoke"]["timeout_sec"],
+            user_agent=config["smoke"]["user_agent"],
+        )
+
+    bundle = build_evidence_bundle(sanitized, sanitization_flags, url_evidence)
+    dispatch = dispatch_to_panel(
+        bundle,
+        client,
+        rubric,
+        juror_prompts,
+        validator,
+        retries=config["dispatch"]["retries"],
+    )
+
+    averages = average_scores(dispatch.scores)
+    spread = juror_spread(dispatch.scores)
+    flags = sorted({flag for doc in dispatch.scores for flag in doc.get("flags", [])})
+    evidence_notes = [note for doc in dispatch.scores for note in doc.get("evidence", [])]
+
+    return {
+        "team_number": submission.get("team_number"),
+        "team_name": submission.get("team_name", ""),
+        "captain_contact": submission.get("captain_contact", ""),
+        "project_url": submission.get("project_url", ""),
+        "url_smoke": {
+            "reachable": url_evidence.get("reachable"),
+            "status_code": url_evidence.get("status_code"),
+            "flags": url_evidence.get("flags", []),
+            "note": url_evidence.get("smoke_note", ""),
+        },
+        "sanitization_flags": sanitization_flags,
+        "valid_scores": len(dispatch.scores),
+        "dropped_judges": dispatch.dropped,
+        "averages": averages,
+        "spread": spread,
+        "flags": flags,
+        "evidence_notes": evidence_notes,
+        "blind_scores": dispatch.scores,
+        "elapsed_sec": round(time.monotonic() - started, 1),
+    }
+
+
+def run_pipeline(args) -> int:
+    config = load_config(args.config)
+    rubric, juror_prompts, _foreman = load_prompts(config)
+    validator = BlindScoreValidator(REPO_ROOT / config["paths"]["schema"])
+    client = build_client(config, args.mock)
+    board = Blackboard()
+
+    intake = board.load_intake(args.intake)
+    intake = board.dedupe_latest(intake)
+    if args.team is not None:
+        intake = [row for row in intake if row.get("team_number") == args.team]
+        if not intake:
+            print(f"team {args.team} not found in intake", file=sys.stderr)
+            return 2
+
+    results = []
+    for submission in intake:
+        entry = judge_submission(
+            submission,
+            config,
+            client,
+            rubric,
+            juror_prompts,
+            validator,
+            skip_network=args.skip_network,
+        )
+        results.append(entry)
+        print(
+            f"team {entry['team_number']:>3} | valid {entry['valid_scores']}/3 | "
+            f"total {entry['averages'].get('total', '-')} | spread {entry['spread']} | "
+            f"{entry['elapsed_sec']}s",
+            flush=True,
+        )
+
+    ranked = rank_teams(results)
+    short_cfg = config["shortlist"]
+    shortlist = build_shortlist(
+        ranked,
+        top_n=short_cfg["top_n"],
+        alternates=short_cfg["alternates"],
+        spread_threshold=short_cfg["contested_spread"],
+        band_lo=short_cfg["cutoff_band_lo"],
+        band_hi=short_cfg["cutoff_band_hi"],
+    )
+
+    scorecards = compile_scorecards(ranked)
+
+    report = {
+        "mode": "mock" if args.mock else "live",
+        "intake_rows": len(intake),
+        "results": [
+            {
+                "team_number": e["team_number"],
+                "rank": e["rank"],
+                "status": e["status"],
+                "contested": e["contested"],
+                "total": e["averages"].get("total"),
+                "dropped_judges": e["dropped_judges"],
+            }
+            for e in ranked
+        ],
+        "shortlist": [e["team_number"] for e in shortlist["shortlist"]],
+        "alternates": [e["team_number"] for e in shortlist["alternates"]],
+    }
+
+    out_dir = Path(args.out)
+    board.write_judging(ranked, out_dir / "judging.json")
+    board.write_shortlist(shortlist, out_dir / "shortlist.json")
+    board.write_scorecards(scorecards, out_dir / "scorecards.md")
+    board.write_report(report, out_dir / "report.json")
+
+    print(f"\nshortlist: {report['shortlist']}")
+    print(f"alternates: {report['alternates']}")
+    print(f"outputs written to {out_dir.resolve()}")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="judging.service", description="Round 1 judging pipeline")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    run_parser = sub.add_parser("run", help="run the full pipeline over an intake file")
+    run_parser.add_argument("--intake", required=True, help="intake file (.json list or .csv)")
+    run_parser.add_argument("--config", default=str(REPO_ROOT / "config.json"))
+    run_parser.add_argument("--out", default=str(REPO_ROOT / "out"))
+    run_parser.add_argument("--mock", action="store_true", help="use deterministic mock jurors (no API key)")
+    run_parser.add_argument("--skip-network", action="store_true", help="skip URL smoke tests")
+    run_parser.add_argument("--team", type=int, default=None, help="canary mode: process only this team number")
+
+    args = parser.parse_args()
+    if args.command == "run":
+        return run_pipeline(args)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

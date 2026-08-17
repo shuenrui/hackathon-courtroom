@@ -1,0 +1,37 @@
+{
+  "qwen": {
+    "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "api_key_env": "QWEN_API_KEY",
+    "model": "qwen-max"
+  },
+  "smoke": {
+    "timeout_sec": 20,
+    "user_agent": "HackathonJudge/1.0 (smoke test)"
+  },
+  "dispatch": {
+    "timebox_sec": 300,
+    "retries": 1
+  },
+  "shortlist": {
+    "top_n": 6,
+    "alternates": 2,
+    "contested_spread": 10,
+    "cutoff_band_lo": 4,
+    "cutoff_band_hi": 9
+  },
+  "limits": {
+    "problem_max_chars": 2400,
+    "solution_max_chars": 4000,
+    "evidence_note_max_chars": 400
+  },
+  "paths": {
+    "schema": "schemas/blind_score.schema.json",
+    "rubric_prompt": "prompts/rubric.md",
+    "juror_prompts": {
+      "juror_one": "prompts/juror_one.md",
+      "juror_two": "prompts/juror_two.md",
+      "juror_three": "prompts/juror_three.md"
+    },
+    "foreman_prompt": "prompts/foreman.md"
+  }
+}

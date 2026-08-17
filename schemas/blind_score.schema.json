@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blind_score.schema.json",
+  "title": "Round 1 blind score — juror output contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["judge", "team_number", "round", "scores", "total", "flags", "evidence"],
+  "properties": {
+    "judge": {
+      "type": "string",
+      "enum": ["juror_one", "juror_two", "juror_three"]
+    },
+    "team_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "round": {
+      "type": "string",
+      "enum": ["blind"]
+    },
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["completeness", "agent_mastery", "problem_fit", "solution_quality", "novelty"],
+      "properties": {
+        "completeness": {"type": "number", "minimum": 0, "maximum": 20},
+        "agent_mastery": {"type": "number", "minimum": 0, "maximum": 10},
+        "problem_fit": {"type": "number", "minimum": 0, "maximum": 10},
+        "solution_quality": {"type": "number", "minimum": 0, "maximum": 10},
+        "novelty": {"type": "number", "minimum": 0, "maximum": 10}
+      }
+    },
+    "total": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 60
+    },
+    "flags": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {"type": "string", "maxLength": 300}
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {"type": "string", "maxLength": 400}
+    }
+  }
+}
