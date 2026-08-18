@@ -116,8 +116,12 @@ def run_pipeline(args) -> int:
     state = RunState(Path(args.out) / "state.json")
     previous = {str(e["team_number"]): e for e in state.previous_results()}
 
-    intake = board.load_intake(args.intake)
-    intake = board.dedupe_latest(intake)
+    raw_intake = board.load_intake(args.intake)
+    ignored_resubmissions = board.ignored_resubmissions(raw_intake)
+    intake = board.dedupe_first(raw_intake)
+    if ignored_resubmissions:
+        detail = ", ".join(f"team {k} (x{v + 1} entries)" for k, v in sorted(ignored_resubmissions.items()))
+        print(f"note: later submissions ignored — single submission locked at first entry: {detail}", flush=True)
     if args.team is not None:
         intake = [row for row in intake if row.get("team_number") == args.team]
         if not intake:
@@ -178,7 +182,9 @@ def run_pipeline(args) -> int:
 
     report = {
         "mode": "mock" if args.mock else "live",
-        "intake_rows": len(intake),
+        "intake_rows": len(raw_intake),
+        "scored_teams": len(results),
+        "ignored_resubmissions": ignored_resubmissions,
         "results": [
             {
                 "team_number": e["team_number"],

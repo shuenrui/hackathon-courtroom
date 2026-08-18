@@ -31,7 +31,7 @@ Code repo: this directory. Blackboard = the hackathon spreadsheet. Judge room = 
 ## 16:00 — form closes sharp
 
 - Announce close; service processes the last responses
-- No new submissions after 16:00; resubmissions before it count (latest wins)
+- No new submissions after 16:00; single submission per team — the first response locks the slot, later entries are ignored and counted in the report
 
 ## 16:15 — clarifications close
 

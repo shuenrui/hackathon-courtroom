@@ -18,7 +18,7 @@ The Form is the **official submission record**. Teams (usually their submission 
 
 ## Form settings
 
-- One response per edit cycle is NOT enforced — resubmissions allowed until 16:00; the service dedupes by team number (latest wins).
+- One response per team is enforced by the service: the FIRST form response locks the slot; later responses are ignored and counted. State this on the form so teams don't waste a resubmission.
 - Collect email addresses: OFF (team identity lives in the team channel, not the form).
 - Confirmation message: "Received. The jury is on it — watch your team channel for clarification questions."
 

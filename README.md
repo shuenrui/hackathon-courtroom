@@ -10,7 +10,7 @@ Split by design — reliability-critical plumbing is deterministic; the LLM does
 
 ```
 intake (CSV/Sheet) ─► Judging Service (deterministic)
-                        ├─ dedupe (latest per team number)
+                        ├─ dedupe (first per team — single submission, locked)
                         ├─ sanitize (injection defence)
                         ├─ smoke test the live URL
                         ├─ build ONE shared evidence bundle
@@ -83,7 +83,7 @@ Outputs land in `out/`:
 - `delivery/` — one paste-ready scorecard per team for manual sending
 - `dialog/` — the visible jury dialog per team (summon → reviews → questions → answers)
 - `foreman/` — post-ready artifacts for the Foreman: courtroom case headers (with scores), #live-feed mirrors (scores stripped), verdict lines, and the top-six announcement
-- `state.json` — incremental state: unchanged submissions are never re-scored; resubmissions are detected by content hash
+- `state.json` — incremental state: a team's first submission locks the slot; later entries are ignored + counted; unchanged submissions are never re-scored
 - `report.json` — run summary
 
 ## Blackboard

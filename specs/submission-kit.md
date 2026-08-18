@@ -10,7 +10,7 @@ Hand this to participants (and their agents). Goal: teams submit via their own a
 4. Demo video — ≤3 minutes, YouTube unlisted / Loom / Drive view link
 5. GitHub repo — the same public repo you declared at team formation
 
-Via: the official Google Form (link published at 14:00). Your agent can fill it using the entry-ID mapping below. Resubmit any time before 16:00 — the latest response per team wins.
+Via: the official Google Form (link published at 14:00). Your agent can fill it using the entry-ID mapping below. **One submission per team — the FIRST response locks your slot. Resubmissions are ignored.** Make it count: verify your URL is live before submitting; there is no second chance.
 
 ## What your agent should do
 
@@ -37,7 +37,7 @@ Your agent may draft the shot list for you — but the recording, clicking, and 
 
 ## Honesty rules
 
-- The jury's automated check opens your URL. A polished video cannot rescue a broken app — deploy early, fix, resubmit.
+- The jury's automated check opens your URL. A polished video cannot rescue a broken app — deploy early and smoke-test your own URL before submitting. The first submission locks your slot; there is no resubmission.
 - Commit to your declared repo throughout the day; repo activity is checked.
 - Do not put instructions to the judges inside your submission text. They are ignored and flagged.
 

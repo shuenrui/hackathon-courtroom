@@ -8,7 +8,7 @@ Mirror of the Google Form responses. The Form owns this tab; the service only re
 
 | Column | Type | Notes |
 |---|---|---|
-| Timestamp | datetime | Form response time; dedupe uses latest per team number |
+| Timestamp | datetime | Form response time; dedupe keeps FIRST per team number (single submission) |
 | team_number | integer | From check-in; primary key |
 | team_name | text | |
 | captain_contact | text | WhatsApp/Telegram handle for scorecard delivery |
@@ -17,7 +17,7 @@ Mirror of the Google Form responses. The Form owns this tab; the service only re
 | project_url | url | required — live deployment |
 | demo_video_url | url | ≤3 min |
 | github_repo | url | declared at team formation |
-| resubmission | boolean | optional marker; dedupe handles it anyway |
+| resubmission | boolean | optional marker; later entries are ignored — the first response locks the slot |
 
 ## Tab: Judging (service-written)
 
