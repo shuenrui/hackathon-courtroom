@@ -45,6 +45,15 @@
       "minItems": 1,
       "maxItems": 12,
       "items": {"type": "string", "maxLength": 400}
+    },
+    "review": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "questions": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {"type": "string", "maxLength": 500}
     }
   }
 }

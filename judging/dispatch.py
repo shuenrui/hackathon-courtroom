@@ -23,8 +23,12 @@ Respond with ONE JSON object and nothing else. No prose, no markdown fences. Sch
   },
   "total": <sum of the five scores>,
   "flags": ["short machine-readable issues, e.g. url_unreachable"],
-  "evidence": ["1-12 short factual notes citing what you observed in the evidence bundle"]
+  "evidence": ["1-12 short factual notes citing what you observed in the evidence bundle"],
+  "review": "<a short commentary the team will see in their channel — observations only. NEVER include a score, number, or ranking here>",
+  "questions": ["<up to 3 questions for the team, phrased directly to them>"]
 }
+The review and questions are the only parts of your response that reach the team. Keep them
+substantive and specific to THIS submission. Your scores never leave the courtroom.
 """
 
 

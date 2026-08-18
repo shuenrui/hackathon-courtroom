@@ -15,7 +15,7 @@ CRITERIA_DISPLAY = {
 }
 
 _SCORE_LEAK = re.compile(
-    r"\b\d{1,2}(?:\.\d+)?\s*/\s*60\b"
+    r"\b\d{1,2}(?:\.\d+)?\s*(?:/|out of)\s*(?:60|20|10)\b"
     r"|\b(?:total|score|scored|spread)\s+\d{1,2}(?:\.\d+)?\b"
     r"|\b\d{1,2}\.\d\b",
     re.I,

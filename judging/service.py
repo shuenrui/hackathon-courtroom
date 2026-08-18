@@ -164,6 +164,14 @@ def run_pipeline(args) -> int:
     scorecards = compile_scorecards(ranked)
 
     from .foreman import write_foreman_artifacts
+    from .dialog import append_answer_phase, write_dialog
+
+    for entry in ranked:
+        write_dialog(entry, args.out)
+    answers_file = getattr(args, "answers", None)
+    if answers_file and args.team is not None:
+        answers = [line.strip() for line in Path(answers_file).read_text().splitlines() if line.strip()]
+        append_answer_phase({"team_number": args.team}, answers, args.out)
 
     write_foreman_artifacts(ranked, shortlist, args.out)
     state.save(ranked)
@@ -203,6 +211,23 @@ def run_pipeline(args) -> int:
     return 0
 
 
+def summon_pipeline(args) -> int:
+    """The ping event: Judge Lead summons the jury for one team, then shows the dialog."""
+    status = run_pipeline(args)
+    if status != 0:
+        return status
+    if args.team is None:
+        print("summon requires --team N", file=sys.stderr)
+        return 2
+    transcript = Path(args.out) / "dialog" / f"team_{args.team:02d}.md"
+    if transcript.exists():
+        print(f"\n=== Jury dialog — Team {args.team:02d} ===")
+        print(transcript.read_text())
+    else:
+        print(f"no dialog produced for team {args.team}", file=sys.stderr)
+    return 0
+
+
 def poll_pipeline(args) -> int:
     cycles = 0
     while True:
@@ -239,11 +264,41 @@ def main() -> int:
     poll_parser.add_argument("--cycles", type=int, default=0, help="stop after N cycles; 0 = run forever")
     poll_parser.add_argument("--team", type=int, default=None)
 
+    summon_parser = sub.add_parser(
+        "summon",
+        help="the ping event: run judging for one team and print the visible jury dialog",
+    )
+    summon_parser.add_argument("--intake", required=True)
+    summon_parser.add_argument("--team", type=int, required=True)
+    summon_parser.add_argument("--config", default=str(REPO_ROOT / "config.json"))
+    summon_parser.add_argument("--out", default=str(REPO_ROOT / "out"))
+    summon_parser.add_argument("--mock", action="store_true")
+    summon_parser.add_argument("--skip-network", action="store_true")
+
+    answer_parser = sub.add_parser(
+        "answer",
+        help="append a team's clarifications to their dialog transcript",
+    )
+    answer_parser.add_argument("--team", type=int, required=True)
+    answer_parser.add_argument("--answers", required=True, help="file with the team's answers, one per line")
+    answer_parser.add_argument("--out", default=str(REPO_ROOT / "out"))
+
     args = parser.parse_args()
     if args.command == "run":
         return run_pipeline(args)
     if args.command == "poll":
         return poll_pipeline(args)
+    if args.command == "summon":
+        return summon_pipeline(args)
+    if args.command == "answer":
+        if args.team is None:
+            return 2
+        answers = [line.strip() for line in Path(args.answers).read_text().splitlines() if line.strip()]
+        from .dialog import append_answer_phase
+
+        path = append_answer_phase({"team_number": args.team}, answers, args.out)
+        print(f"answers appended to {path}")
+        return 0
     return 1
 
 

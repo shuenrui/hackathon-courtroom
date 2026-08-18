@@ -114,5 +114,38 @@ class MockQwenClient:
                 f"Mock evidence ({persona}): solution viability assessed against rubric.",
                 f"Mock evidence ({persona}): URL smoke test result consumed from evidence bundle.",
             ],
+            "review": self._review(persona, team_number, reachable),
+            "questions": self._questions(persona, team_number, reachable),
         }
         return json.dumps(doc)
+
+    def _review(self, persona: str, team_number: int, reachable: bool) -> str:
+        if persona == "juror_one":
+            return (
+                f"Builder's read on Team {team_number}: the smoke test says the URL "
+                f"is {'reachable' if reachable else 'unreachable'} and I anchor completeness "
+                "around a solid 7/10 based on the observed signals."
+            )
+        if persona == "juror_two":
+            return (
+                f"Skeptic's read on Team {team_number}: the problem statement is specific "
+                "but the go-to-market path reads thin; I want the team to defend the target user."
+            )
+        return (
+            f"Futurist's read on Team {team_number}: the agent angle is interesting — "
+            "I want to see how much autonomy was real versus scripted."
+        )
+
+    def _questions(self, persona: str, team_number: int, reachable: bool) -> list[str]:
+        if persona == "juror_one":
+            return [
+                f"Team {team_number}: the edge case you describe — how do you handle input validation failures today?",
+                "What part of the demo is staged versus fully autonomous?",
+            ]
+        if persona == "juror_two":
+            return [
+                f"Team {team_number}: who is the single user who would pay for this tomorrow?",
+            ]
+        return [
+            f"Team {team_number}: which step of your pipeline did your agent improvise on that you had not scripted?",
+        ]
