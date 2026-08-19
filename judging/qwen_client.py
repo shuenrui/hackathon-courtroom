@@ -10,20 +10,42 @@ class LLMError(Exception):
 
 
 class QwenClient:
-    def __init__(self, base_url: str, api_key: str, model: str, timebox_sec: int = 300):
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        style: str = "openai",
+        timebox_sec: int = 300,
+        max_tokens: int = 4096,
+    ):
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._model = model
+        self._style = style
         self._timebox = timebox_sec
+        self._max_tokens = max_tokens
 
     @classmethod
     def from_config(cls, qwen_cfg: dict, timebox_sec: int = 300) -> "QwenClient":
         api_key = os.environ.get(qwen_cfg.get("api_key_env", "QWEN_API_KEY"), "")
         if not api_key:
             raise LLMError(f"missing API key in env var {qwen_cfg.get('api_key_env')}")
-        return cls(qwen_cfg["base_url"], api_key, qwen_cfg["model"], timebox_sec)
+        return cls(
+            qwen_cfg["base_url"],
+            api_key,
+            qwen_cfg["model"],
+            style=qwen_cfg.get("style", "openai"),
+            timebox_sec=timebox_sec,
+            max_tokens=qwen_cfg.get("max_tokens", 4096),
+        )
 
     def complete(self, system: str, user: str) -> str:
+        if self._style == "anthropic":
+            return self._complete_anthropic(system, user)
+        return self._complete_openai(system, user)
+
+    def _complete_openai(self, system: str, user: str) -> str:
         payload = {
             "model": self._model,
             "messages": [
@@ -51,6 +73,38 @@ class QwenClient:
             return data["choices"][0]["message"]["content"]
         except (KeyError, IndexError) as exc:
             raise LLMError(f"unexpected API response shape: {str(data)[:300]}") from exc
+
+    def _complete_anthropic(self, system: str, user: str) -> str:
+        payload = {
+            "model": self._model,
+            "system": system,
+            "messages": [{"role": "user", "content": user}],
+            "max_tokens": self._max_tokens,
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": self._api_key,
+            "anthropic-version": "2023-06-01",
+        }
+        try:
+            resp = requests.post(
+                f"{self._base_url}/messages",
+                headers=headers,
+                json=payload,
+                timeout=self._timebox,
+            )
+        except requests.exceptions.RequestException as exc:
+            raise LLMError(f"request failed: {exc.__class__.__name__}: {exc}") from exc
+
+        if resp.status_code != 200:
+            raise LLMError(f"API status {resp.status_code}: {resp.text[:300]}")
+
+        data = resp.json()
+        blocks = data.get("content", [])
+        text = "".join(block.get("text", "") for block in blocks if block.get("type") == "text")
+        if not text:
+            raise LLMError(f"empty text content in Anthropic response: {str(data)[:300]}")
+        return text
 
 
 class MockQwenClient:

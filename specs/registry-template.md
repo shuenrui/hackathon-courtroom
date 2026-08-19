@@ -17,6 +17,7 @@ registry/
 team_number: 7
 team_name: Agent Smiths
 repo_url: https://github.com/org/project
+captain_contact: "+60123450007"  # WhatsApp/Telegram — private scorecard delivery
 declared_at: 2026-08-23T10:22:00+08:00
 ```
 

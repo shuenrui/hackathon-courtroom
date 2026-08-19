@@ -1,8 +1,10 @@
 {
   "qwen": {
-    "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "base_url": "https://opencode.ai/zen/go/v1",
     "api_key_env": "QWEN_API_KEY",
-    "model": "qwen-max"
+    "model": "qwen3.7-plus",
+    "style": "anthropic",
+    "max_tokens": 4096
   },
   "smoke": {
     "timeout_sec": 20,
