@@ -108,3 +108,15 @@ Two intake sources:
 - 22 Aug: freeze
 
 Fallback if the pipeline is not reliable by 21 Aug: human screening with the same rubric; scorecards still compiled by this repo.
+
+## TODO — concurrency + stress test (after core build is complete)
+
+Problem: scoring is sequential — a submission burst (e.g. everyone submits 15:45–16:00)
+could push the queue past the 16:15 clarification cutoff. The Discord side (threads, Q&A)
+is naturally parallel; the pipeline is the bottleneck.
+
+- [ ] Parallel judges within a team — the 3 judge calls are independent; dispatch them concurrently (3× per team); change `dispatch_to_panel` to ThreadPoolExecutor
+- [ ] Parallel teams — process several teams at once (config `dispatch.team_concurrency`, start at 3), watch API rate limits
+- [ ] Mock burst stress test — 20 dummy teams submitted at once; verify dedupe / single-submission / correctness and measure mock wall time (zero cost)
+- [ ] Real-API load test at rehearsal — canary 3 teams first, then scale to ~10; measure throughput + rate-limit behavior; set the honest per-team ceiling for event day
+- [ ] Queue discipline — ping order = processing order; Foreman announces queue position in the summon message
