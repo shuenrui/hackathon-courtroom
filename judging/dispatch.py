@@ -5,6 +5,26 @@ from .schema import BlindScoreValidator, ScoreValidationError, extract_json
 from .qwen_client import LLMError
 
 JURORS = ("juror_one", "juror_two", "juror_three")
+REFLECTORS = ("juror_one", "juror_two", "juror_three", "foreman")
+
+REFLECTION_CONTRACT_SUFFIX = """
+
+REFLECTION PASS — follow exactly:
+The case is closed. Write your post-case reflection for the jury's knowledge ledger.
+Respond with ONE JSON object and nothing else. No prose, no markdown fences. Schema:
+{
+  "judge": "<your id: juror_one, juror_two, juror_three, or foreman>",
+  "team_number": <integer, the case number>,
+  "reflection": [
+    "<line 1: what separated or broke this build, or (foreman) what the panel dynamic revealed>",
+    "<line 2: which question or move proved useful, which was wasted>",
+    "<line 3 (optional): a transferable pattern worth carrying into future cases>",
+    "<line 4 (optional)>
+  ]
+}
+2-4 lines, specific and transferable — written for the NEXT case, not for the record.
+Never include scores or numerics. This text is distilled into future judge prompts.
+"""
 
 OUTPUT_CONTRACT_SUFFIX = """
 
@@ -42,8 +62,11 @@ class DispatchResult:
         return len(self.scores) >= 2
 
 
-def build_system_prompt(rubric: str, persona_prompt: str) -> str:
-    return persona_prompt.strip() + "\n\n" + rubric.strip() + OUTPUT_CONTRACT_SUFFIX
+def build_system_prompt(rubric: str, persona_prompt: str, lessons: str = "") -> str:
+    base = persona_prompt.strip() + "\n\n" + rubric.strip()
+    if lessons.strip():
+        base = base + "\n\n" + lessons.strip()
+    return base + OUTPUT_CONTRACT_SUFFIX
 
 
 def dispatch_to_panel(
@@ -53,6 +76,7 @@ def dispatch_to_panel(
     juror_prompts: dict[str, str],
     validator: BlindScoreValidator,
     retries: int = 1,
+    lessons: str = "",
 ) -> DispatchResult:
     result = DispatchResult()
     team_number = bundle.get("team_number")
@@ -64,7 +88,7 @@ def dispatch_to_panel(
             result.dropped[juror] = "missing_persona_prompt"
             continue
 
-        system = build_system_prompt(rubric, persona_prompt)
+        system = build_system_prompt(rubric, persona_prompt, lessons)
         score_doc = None
         last_error = ""
 
@@ -98,3 +122,59 @@ def serialize_dispatch(result: DispatchResult) -> dict:
         "dropped": result.dropped,
         "scores": result.scores,
     }
+
+
+def build_reflection_prompt(persona_prompt: str) -> str:
+    return persona_prompt.strip() + REFLECTION_CONTRACT_SUFFIX
+
+
+def dispatch_reflections(
+    case_summary: str,
+    client,
+    prompts: dict[str, str],
+    retries: int = 1,
+    team_number: int | None = None,
+) -> tuple[list[dict], dict[str, str]]:
+    """Run the reflection pass for one closed case. Returns (docs, dropped)."""
+    from .schema import extract_json
+
+    docs: list[dict] = []
+    dropped: dict[str, str] = {}
+    user_message = wrap_untrusted(case_summary)
+
+    for judge in REFLECTORS:
+        persona_prompt = prompts.get(judge, "")
+        if not persona_prompt:
+            dropped[judge] = "missing_persona_prompt"
+            continue
+
+        system = build_reflection_prompt(persona_prompt)
+        doc = None
+        last_error = ""
+        for _attempt in range(retries + 1):
+            try:
+                raw = client.complete(system, user_message)
+                parsed = extract_json(raw)
+                if parsed.get("team_number") is None and team_number is not None:
+                    parsed["team_number"] = team_number
+                if parsed.get("judge") != judge:
+                    parsed["judge"] = judge
+                if not isinstance(parsed.get("reflection"), list) or not (
+                    2 <= len(parsed["reflection"]) <= 4
+                ):
+                    raise ValueError("reflection must be 2-4 lines")
+                doc = {
+                    "judge": judge,
+                    "team_number": int(parsed["team_number"]),
+                    "reflection": [str(line)[:300] for line in parsed["reflection"]],
+                }
+                break
+            except Exception as exc:
+                last_error = f"{exc.__class__.__name__}: {exc}"
+
+        if doc is not None:
+            docs.append(doc)
+        else:
+            dropped[judge] = last_error
+
+    return docs, dropped

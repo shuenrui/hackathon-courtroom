@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reflection.schema.json",
+  "title": "Post-case reflection — knowledge loop input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["judge", "team_number", "reflection"],
+  "properties": {
+    "judge": {
+      "type": "string",
+      "enum": ["juror_one", "juror_two", "juror_three", "foreman"]
+    },
+    "team_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "reflection": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 4,
+      "items": {"type": "string", "maxLength": 300}
+    }
+  }
+}

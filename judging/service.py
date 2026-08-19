@@ -6,8 +6,9 @@ from pathlib import Path
 
 from .aggregate import average_scores, build_shortlist, juror_spread, rank_teams
 from .blackboard import Blackboard, SheetsBlackboard
-from .dispatch import dispatch_to_panel
+from .dispatch import dispatch_reflections, dispatch_to_panel
 from .evidence import build_evidence_bundle
+from .knowledge import ReflectionStore
 from .qwen_client import MockQwenClient, QwenClient
 from .sanitize import sanitize_submission
 from .schema import BlindScoreValidator
@@ -49,6 +50,7 @@ def judge_submission(
     juror_prompts: dict[str, str],
     validator: BlindScoreValidator,
     skip_network: bool = False,
+    lessons: str = "",
 ) -> dict:
     started = time.monotonic()
     sanitized, sanitization_flags = sanitize_submission(submission, config["limits"])
@@ -76,6 +78,7 @@ def judge_submission(
         juror_prompts,
         validator,
         retries=config["dispatch"]["retries"],
+        lessons=lessons,
     )
 
     averages = average_scores(dispatch.scores)
@@ -111,6 +114,10 @@ def run_pipeline(args) -> int:
     rubric, juror_prompts, _foreman = load_prompts(config)
     validator = BlindScoreValidator(REPO_ROOT / config["paths"]["schema"])
     client = build_client(config, args.mock)
+    knowledge_dir = REPO_ROOT / config.get("knowledge", {}).get("dir", "knowledge")
+    lessons = ReflectionStore(knowledge_dir).load_lessons()
+    if lessons.strip():
+        print("knowledge: injecting lessons from prior cases into juror prompts", flush=True)
     if args.intake == "sheet":
         sheets_cfg = config.get("sheets", {})
         board = SheetsBlackboard(
@@ -150,6 +157,7 @@ def run_pipeline(args) -> int:
             juror_prompts,
             validator,
             skip_network=args.skip_network,
+            lessons=lessons,
         )
         state.mark_scored(submission)
         results.append(entry)
@@ -240,6 +248,61 @@ def summon_pipeline(args) -> int:
     return 0
 
 
+def render_case_summary(entry: dict, answers: list[str]) -> str:
+    summary = {
+        "team_number": entry["team_number"],
+        "url_smoke": entry.get("url_smoke", {}),
+        "sanitization_flags": entry.get("sanitization_flags", []),
+        "final_averages": entry.get("averages", {}),
+        "spread": entry.get("spread"),
+        "contested": entry.get("contested"),
+        "juror_scores": [
+            {"judge": d.get("judge"), "total": d.get("total"), "evidence": d.get("evidence", [])}
+            for d in entry.get("blind_scores", [])
+        ],
+        "team_answers": answers,
+    }
+    return json.dumps(summary, indent=2, ensure_ascii=False)
+
+
+def reflect_pipeline(args) -> int:
+    config = load_config(args.config)
+    rubric, juror_prompts, foreman_prompt = load_prompts(config)
+    client = build_client(config, args.mock)
+
+    judging_path = Path(args.out) / "judging.json"
+    if not judging_path.exists():
+        print(f"no judging results at {judging_path} — run scoring first", file=sys.stderr)
+        return 2
+    results = json.loads(judging_path.read_text())
+    entry = next((e for e in results if e.get("team_number") == args.team), None)
+    if entry is None:
+        print(f"team {args.team} not in judging results", file=sys.stderr)
+        return 2
+
+    answers = []
+    if args.answers:
+        answers = [line.strip() for line in Path(args.answers).read_text().splitlines() if line.strip()]
+
+    summary = render_case_summary(entry, answers)
+    prompts = dict(juror_prompts)
+    if foreman_prompt.strip():
+        prompts["foreman"] = foreman_prompt
+
+    docs, dropped = dispatch_reflections(
+        summary, client, prompts, retries=config["dispatch"]["retries"], team_number=args.team
+    )
+    if dropped:
+        print(f"reflection pass dropped: {dropped}", file=sys.stderr)
+
+    knowledge_dir = REPO_ROOT / config.get("knowledge", {}).get("dir", "knowledge")
+    store = ReflectionStore(knowledge_dir)
+    store.add_case(args.team, docs)
+    print(f"team {args.team:>3} | reflections {len(docs)}/4 → {store.ledger_path}")
+    print(f"lessons rebuilt → {store.lessons_path}")
+    return 0
+
+
 def poll_pipeline(args) -> int:
     cycles = 0
     while True:
@@ -295,6 +358,16 @@ def main() -> int:
     answer_parser.add_argument("--answers", required=True, help="file with the team's answers, one per line")
     answer_parser.add_argument("--out", default=str(REPO_ROOT / "out"))
 
+    reflect_parser = sub.add_parser(
+        "reflect",
+        help="knowledge loop: post-case reflection pass (3 judges + Foreman meta) → lessons ledger",
+    )
+    reflect_parser.add_argument("--team", type=int, required=True)
+    reflect_parser.add_argument("--answers", default=None, help="optional file with the team's answers, one per line")
+    reflect_parser.add_argument("--config", default=str(REPO_ROOT / "config.json"))
+    reflect_parser.add_argument("--out", default=str(REPO_ROOT / "out"))
+    reflect_parser.add_argument("--mock", action="store_true")
+
     args = parser.parse_args()
     if args.command == "run":
         return run_pipeline(args)
@@ -302,6 +375,8 @@ def main() -> int:
         return poll_pipeline(args)
     if args.command == "summon":
         return summon_pipeline(args)
+    if args.command == "reflect":
+        return reflect_pipeline(args)
     if args.command == "answer":
         if args.team is None:
             return 2

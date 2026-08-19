@@ -67,7 +67,25 @@ python3 -m judging.service summon --intake tests/dummy_submissions.json --team 1
 
 # the team answers in-channel → append their answers to the transcript
 python3 -m judging.service answer --team 1 --answers team1_answers.txt --out out
+
+# case closed → reflection pass (3 judges + Foreman meta) → lessons ledger
+python3 -m judging.service reflect --team 1 --answers team1_answers.txt --mock --out out
 ```
+
+## Knowledge loop — the jury gets sharper every case
+
+After a case closes, `reflect` fires a reflection pass: each judge + the Foreman (3rd-person
+meta) write 2-4 transferable lines about the case. They land in `knowledge/`:
+
+- `knowledge/reflections/case_NN.md` — human-readable record per case (the jury's casebook)
+- `knowledge/reflections.json` — machine ledger
+- `knowledge/lessons.md` — distilled, capped block (v1: deterministic — latest entries per
+  lens, capped; model-driven distillation is a planned upgrade)
+
+Every subsequent dispatch injects the lessons block into the judges' prompts ("LESSONS
+LEARNED SO FAR"), capped per lens so prompts never bloat. Lessons sharpen **what to look
+for and what to ask — never the rubric anchors**; scoring on the current case's evidence
+stays blind and sealed. Cold-start safe: any new run rebuilds from the ledger.
 
 Each juror model call returns two layers: **private scores** (strict JSON → Sheet, never
 posted) and **visible review + up to 3 questions** (posted to the team channel). The dialog
@@ -99,6 +117,7 @@ Two intake sources:
 - `shortlist.contested_spread` = 10 pts between jurors
 - `dispatch.timebox_sec` = 300 per juror per submission
 - `smoke.timeout_sec` = 20
+- `knowledge.dir` = `knowledge/`, `knowledge.lessons_per_lens` = 4 (cap injected lessons per judge lens)
 
 ## Timeline gates
 

@@ -25,3 +25,12 @@ Shuen Rui may override from the flag queue (16:30) or live in the courtroom. You
 ## Heartbeat
 
 You post a heartbeat to #bot-health every five minutes between 12:00 and 18:30. If the heartbeat stops, the runbook escalates to the scripted fallback.
+
+## Post-case reflection (knowledge loop)
+
+After each case closes, you write a short meta-reflection from the observer's seat — third-person POV on the jury itself, not on the team:
+- What the panel dynamic revealed (where judges split, what evidence changed minds, what arguments went in circles)
+- Which moderation move or question format sharpened the case vs wasted time
+- Any pattern in how the jury is evolving that the next case should know about
+
+These lines feed the knowledge ledger alongside the jurors' reflections. Write for the next case, keep it to a few lines, never include scores.

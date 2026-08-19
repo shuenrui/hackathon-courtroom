@@ -133,6 +133,19 @@ class MockQwenClient:
         if team_number is None:
             team_number = 1
 
+        if "REFLECTION PASS" in system:
+            judge = "foreman" if "THE FOREMAN" in system.upper() else persona
+            payload = {
+                "judge": judge,
+                "team_number": team_number,
+                "reflection": [
+                    f"Mock reflection ({judge}, case {team_number:02d}): the strongest signal was the gap between the write-up claims and the smoke-test evidence.",
+                    f"Mock reflection ({judge}, case {team_number:02d}): probing the failure path produced the most useful answer of the session.",
+                    f"Mock reflection ({judge}, case {team_number:02d}): pattern worth carrying — autonomy claims need a demonstrated unscripted moment before they are credited.",
+                ],
+            }
+            return json.dumps(payload)
+
         seed = hashlib.sha256(f"{persona}:{team_number}".encode()).digest()
 
         def roll(index: int, span: int) -> int:

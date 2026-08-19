@@ -28,6 +28,7 @@
   },
   "paths": {
     "schema": "schemas/blind_score.schema.json",
+    "reflection_schema": "schemas/reflection.schema.json",
     "rubric_prompt": "prompts/rubric.md",
     "juror_prompts": {
       "juror_one": "prompts/juror_one.md",
@@ -35,6 +36,10 @@
       "juror_three": "prompts/juror_three.md"
     },
     "foreman_prompt": "prompts/foreman.md"
+  },
+  "knowledge": {
+    "dir": "knowledge",
+    "lessons_per_lens": 4
   },
   "sheets": {
     "credentials_path": "",
