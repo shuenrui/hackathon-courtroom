@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 from .aggregate import average_scores, build_shortlist, juror_spread, rank_teams
-from .blackboard import Blackboard
+from .blackboard import Blackboard, SheetsBlackboard
 from .dispatch import dispatch_to_panel
 from .evidence import build_evidence_bundle
 from .qwen_client import MockQwenClient, QwenClient
@@ -111,12 +111,18 @@ def run_pipeline(args) -> int:
     rubric, juror_prompts, _foreman = load_prompts(config)
     validator = BlindScoreValidator(REPO_ROOT / config["paths"]["schema"])
     client = build_client(config, args.mock)
-    board = Blackboard()
+    if args.intake == "sheet":
+        sheets_cfg = config.get("sheets", {})
+        board = SheetsBlackboard(
+            sheets_cfg.get("credentials_path", ""), sheets_cfg.get("spreadsheet_id", "")
+        )
+    else:
+        board = Blackboard()
 
     state = RunState(Path(args.out) / "state.json")
     previous = {str(e["team_number"]): e for e in state.previous_results()}
 
-    raw_intake = board.load_intake(args.intake)
+    raw_intake = board.load_intake(None if args.intake == "sheet" else args.intake)
     ignored_resubmissions = board.ignored_resubmissions(raw_intake)
     intake = board.dedupe_first(raw_intake)
     if ignored_resubmissions:

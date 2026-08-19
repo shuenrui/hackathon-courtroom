@@ -2,3 +2,6 @@ out/
 __pycache__/
 *.pyc
 .env
+service-account*.json
+*service_account*.json
+google-credentials*.json

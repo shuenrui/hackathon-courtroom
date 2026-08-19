@@ -88,7 +88,10 @@ Outputs land in `out/`:
 
 ## Blackboard
 
-Local mode writes JSON files (sole writer = the service). `judging.sheets.SheetsBlackboard` is the provisioned adapter for the Google Sheet blackboard (tabs per `specs/sheet-spec.md`); it activates once `gspread`, a service-account JSON, and the spreadsheet id are in place. Until then it raises a clear provisioning error.
+Two intake sources:
+
+- **Local mode** (default): CSV/JSON intake file (sole writer = the service).
+- **Sheet mode**: `--intake sheet` reads the Google Form responses tab via a service account (`gspread`). Provisioning: service-account JSON on disk (gitignored), sheet shared as editor with the service account email, `sheets.credentials_path` + `sheets.spreadsheet_id` set in config.json, `pip install gspread`. Column map lives in `judging/blackboard.py` (`SheetsBlackboard.COLUMN_MAP`).
 
 ## Key parameters (config.json)
 

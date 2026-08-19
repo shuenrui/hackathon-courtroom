@@ -76,8 +76,47 @@ class Blackboard:
 
 
 class SheetsBlackboard(Blackboard):
-    def __init__(self):
-        raise NotImplementedError(
-            "Sheets adapter pending provisioning: service-account JSON + spreadsheet id. "
-            "Tabs spec: specs/sheet-spec.md. The Judging Service is the sole writer."
-        )
+    """Intake from the Google Form responses tab via service account (gspread).
+
+    Provisioning: `gspread` installed, service-account JSON on disk (never committed),
+    the responses sheet shared as editor with the service account email, and
+    `sheets.credentials_path` + `sheets.spreadsheet_id` filled in config.json.
+    """
+
+    COLUMN_MAP = {
+        "timestamp": "submitted_at",
+        "team number": "team_number",
+        "problem statement": "problem_statement",
+        "solution": "solution",
+        "project url": "project_url",
+        "demo video link": "demo_video_url",
+        "github repo": "github_repo",
+    }
+
+    def __init__(self, credentials_path: str, spreadsheet_id: str, tab_name: str = "Form responses 1"):
+        try:
+            import gspread
+        except ImportError as exc:
+            raise NotImplementedError("gspread not installed — run: pip install gspread") from exc
+        if not credentials_path or not spreadsheet_id:
+            raise NotImplementedError(
+                "Sheets provisioning incomplete: set sheets.credentials_path and "
+                "sheets.spreadsheet_id in config.json, and share the sheet with the "
+                "service account email as editor."
+            )
+        self._client = gspread.service_account(filename=credentials_path)
+        self._sheet = self._client.open_by_key(spreadsheet_id)
+        self._tab_name = tab_name
+
+    def load_intake(self, path: str | None = None) -> list[dict]:
+        records = self._sheet.worksheet(self._tab_name).get_all_records()
+        intake = []
+        for record in records:
+            mapped = {}
+            for header, value in record.items():
+                field = self.COLUMN_MAP.get(str(header).strip().lower())
+                if field and value is not None and str(value).strip() != "":
+                    mapped[field] = value
+            if mapped.get("team_number") is not None:
+                intake.append(mapped)
+        return intake

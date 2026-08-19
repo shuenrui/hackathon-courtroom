@@ -1,2 +1,3 @@
 jsonschema>=4.20
 requests>=2.31
+gspread>=6.1
