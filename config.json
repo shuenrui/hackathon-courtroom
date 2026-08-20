@@ -12,7 +12,8 @@
   },
   "dispatch": {
     "timebox_sec": 300,
-    "retries": 1
+    "retries": 1,
+    "parallel_judges": true
   },
   "shortlist": {
     "top_n": 6,

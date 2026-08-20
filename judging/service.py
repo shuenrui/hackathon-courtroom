@@ -79,6 +79,7 @@ def judge_submission(
         validator,
         retries=config["dispatch"]["retries"],
         lessons=lessons,
+        parallel=config["dispatch"].get("parallel_judges", True),
     )
 
     averages = average_scores(dispatch.scores)
@@ -90,6 +91,7 @@ def judge_submission(
         "team_number": submission.get("team_number"),
         "team_name": submission.get("team_name", ""),
         "captain_contact": submission.get("captain_contact", ""),
+        "submitted_at": submission.get("submitted_at", ""),
         "project_url": submission.get("project_url", ""),
         "url_smoke": {
             "reachable": url_evidence.get("reachable"),

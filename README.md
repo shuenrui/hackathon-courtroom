@@ -111,11 +111,14 @@ Two intake sources:
 - **Local mode** (default): CSV/JSON intake file (sole writer = the service).
 - **Sheet mode**: `--intake sheet` reads the Google Form responses tab via a service account (`gspread`). Provisioning: service-account JSON on disk (gitignored), sheet shared as editor with the service account email, `sheets.credentials_path` + `sheets.spreadsheet_id` set in config.json, `pip install gspread`. Column map lives in `judging/blackboard.py` (`SheetsBlackboard.COLUMN_MAP`).
 
+**Write-back**: in sheet mode the service is the sole writer of the **Judging** and **Shortlist** tabs (layout in `specs/sheet-spec.md`). Every run syncs both tabs after writing the local JSON outputs. Sheet sync is best-effort — a Sheets hiccup logs a warning and never kills the run; the local outputs are the source of truth.
+
 ## Key parameters (config.json)
 
 - `shortlist.top_n` = 6, `shortlist.alternates` = 2
 - `shortlist.contested_spread` = 10 pts between jurors
 - `dispatch.timebox_sec` = 300 per juror per submission
+- `dispatch.parallel_judges` = true (the 3 judge calls run concurrently within a team)
 - `smoke.timeout_sec` = 20
 - `knowledge.dir` = `knowledge/`, `knowledge.lessons_per_lens` = 4 (cap injected lessons per judge lens)
 
@@ -128,14 +131,23 @@ Two intake sources:
 
 Fallback if the pipeline is not reliable by 21 Aug: human screening with the same rubric; scorecards still compiled by this repo.
 
-## TODO — concurrency + stress test (after core build is complete)
+## Concurrency + stress test
 
-Problem: scoring is sequential — a submission burst (e.g. everyone submits 15:45–16:00)
-could push the queue past the 16:15 clarification cutoff. The Discord side (threads, Q&A)
-is naturally parallel; the pipeline is the bottleneck.
+Problem: scoring was sequential — a submission burst (e.g. everyone submits 15:45–16:00)
+could push the queue past the 16:15 clarification cutoff.
 
-- [ ] Parallel judges within a team — the 3 judge calls are independent; dispatch them concurrently (3× per team); change `dispatch_to_panel` to ThreadPoolExecutor
-- [ ] Parallel teams — process several teams at once (config `dispatch.team_concurrency`, start at 3), watch API rate limits
-- [ ] Mock burst stress test — 20 dummy teams submitted at once; verify dedupe / single-submission / correctness and measure mock wall time (zero cost)
-- [ ] Real-API load test at rehearsal — canary 3 teams first, then scale to ~10; measure throughput + rate-limit behavior; set the honest per-team ceiling for event day
-- [ ] Queue discipline — ping order = processing order; Foreman announces queue position in the summon message
+Status:
+
+- [x] **Parallel judges within a team** — the 3 judge calls are independent and now run
+      concurrently (`dispatch.parallel_judges`, ThreadPoolExecutor). ~3× faster per team.
+      Judge order in the output is always the fixed One → Two → Three regardless of which
+      finishes first.
+- [x] **Queue discipline (deliberate choice)** — teams are processed sequentially, one case
+      at a time. The Discord side (threads, Q&A) is naturally parallel; the courtroom shows
+      one case at a time, so the pipeline matches the spectacle. Ping order = processing order.
+- [x] **Mock burst stress test** — `python3 tests/stress_test.py`: 20-team burst through the
+      full CLI pipeline, parallel-vs-serial equivalence, and 8-team concurrent dispatch with
+      cross-team contamination checks. Zero cost (mock jurors).
+- [ ] **Real-API load test at rehearsal** — canary 3 teams first, then scale to ~10; measure
+      throughput + rate-limit behavior; set the honest per-team ceiling for event day.
+      (Needs `QWEN_API_KEY`.)

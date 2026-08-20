@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 from .evidence import render_bundle_for_prompt, wrap_untrusted
 from .schema import BlindScoreValidator, ScoreValidationError, extract_json
@@ -77,41 +78,60 @@ def dispatch_to_panel(
     validator: BlindScoreValidator,
     retries: int = 1,
     lessons: str = "",
+    parallel: bool = True,
 ) -> DispatchResult:
+    """Score one submission with the full panel.
+
+    Judges run concurrently within a team (queue discipline: teams stay sequential,
+    so the courtroom sees one case at a time). Result ordering is always the fixed
+    JURORS order, regardless of which judge finishes first.
+    """
     result = DispatchResult()
     team_number = bundle.get("team_number")
     user_message = wrap_untrusted(render_bundle_for_prompt(bundle))
 
-    for juror in JURORS:
+    def score_juror(juror: str) -> tuple[str, dict | None, str]:
         persona_prompt = juror_prompts.get(juror, "")
         if not persona_prompt:
-            result.dropped[juror] = "missing_persona_prompt"
-            continue
+            return juror, None, "missing_persona_prompt"
 
         system = build_system_prompt(rubric, persona_prompt, lessons)
-        score_doc = None
         last_error = ""
-
-        for attempt in range(retries + 1):
+        for _attempt in range(retries + 1):
             try:
                 raw = client.complete(system, user_message)
                 doc = extract_json(raw)
                 if doc.get("team_number") is None:
                     doc["team_number"] = team_number
                 validator.validate(doc, expected_judge=juror)
-                score_doc = doc
-                break
+                return juror, doc, ""
             except ScoreValidationError as exc:
                 last_error = f"validation: {exc}"
             except LLMError as exc:
                 last_error = f"llm: {exc}"
             except Exception as exc:
                 last_error = f"unexpected: {exc.__class__.__name__}: {exc}"
+        return juror, None, last_error
 
+    active = [juror for juror in JURORS if juror in juror_prompts]
+    missing = [juror for juror in JURORS if juror not in juror_prompts]
+    for juror in missing:
+        result.dropped[juror] = "missing_persona_prompt"
+
+    if parallel and len(active) > 1:
+        with ThreadPoolExecutor(max_workers=len(active)) as pool:
+            outcomes = {juror: outcome for juror, outcome in zip(active, pool.map(score_juror, active))}
+    else:
+        outcomes = {juror: score_juror(juror) for juror in active}
+
+    for juror in JURORS:
+        if juror not in outcomes:
+            continue
+        _, score_doc, error = outcomes[juror]
         if score_doc is not None:
             result.scores.append(score_doc)
         else:
-            result.dropped[juror] = last_error
+            result.dropped[juror] = error
 
     return result
 
