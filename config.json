@@ -43,8 +43,8 @@
     "lessons_per_lens": 4
   },
   "sheets": {
-    "credentials_path": "",
-    "spreadsheet_id": ""
+    "credentials_path": "service-account.json",
+    "spreadsheet_id": "15W3lfmZVWGDx4v1hVYpuzXP-Kp_Twz8C_o9q4-qGOYU"
   },
   "discord": {
     "guild_id": "1483829659090026518",
@@ -65,6 +65,10 @@
     "intake": "sheet",
     "qna_minutes": 7,
     "heartbeat_minutes": 15,
-    "countdown_marks_sec": [180, 60, 10]
+    "countdown_marks_sec": [
+      180,
+      60,
+      10
+    ]
   }
 }

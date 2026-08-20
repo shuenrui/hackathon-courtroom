@@ -85,18 +85,42 @@ class SheetsBlackboard(Blackboard):
     Tab layout: specs/sheet-spec.md.
     """
 
-    COLUMN_MAP = {
-        "timestamp": "submitted_at",
-        "team number": "team_number",
-        "problem statement": "problem_statement",
-        "solution": "solution",
-        "project url": "project_url",
-        "demo video link": "demo_video_url",
-        "github repo": "github_repo",
-    }
+    # Ordered substring rules matched against the lowercased header. Real Form titles
+    # carry suffixes ("Problem Statement (Max 150 words)", "Demo Video (Youtube/...)"),
+    # so we match on the distinctive core rather than exact titles. More specific first.
+    FIELD_RULES = [
+        ("problem statement", "problem_statement"),
+        ("demo video", "demo_video_url"),
+        ("project url", "project_url"),
+        ("project title", "project_title"),
+        ("team name", "team_name"),
+        ("team number", "team_number_raw"),
+        ("team no", "team_number_raw"),
+        ("email", "captain_contact"),
+        ("phone", "captain_phone"),
+        ("track", "track"),
+        ("solution", "solution"),
+        ("timestamp", "submitted_at"),
+    ]
 
     TAB_JUDGING = "Judging"
     TAB_SHORTLIST = "Shortlist"
+
+    @classmethod
+    def _match_field(cls, header) -> str | None:
+        h = str(header).strip().lower()
+        for needle, field in cls.FIELD_RULES:
+            if needle in h:
+                return field
+        return None
+
+    @staticmethod
+    def _identity_key(row: dict) -> str:
+        """Dedupe identity: an explicit team number if the form has one, else the team name."""
+        raw = str(row.get("team_number_raw") or "").strip()
+        if raw:
+            return f"num:{raw.lower()}"
+        return f"name:{str(row.get('team_name') or '').strip().lower()}"
 
     def __init__(
         self,
@@ -118,18 +142,59 @@ class SheetsBlackboard(Blackboard):
         self._sheet = self._client.open_by_key(spreadsheet_id)
         self._tab_name = tab_name
 
+    def _find_worksheet(self):
+        target = self._tab_name.strip().lower()
+        for ws in self._sheet.worksheets():
+            if ws.title.strip().lower() == target:
+                return ws
+        return self._sheet.worksheet(self._tab_name)
+
     def load_intake(self, path: str | None = None) -> list[dict]:
-        records = self._sheet.worksheet(self._tab_name).get_all_records()
+        """Raw mapped rows, one per form response, in sheet order (chronological)."""
+        records = self._find_worksheet().get_all_records()
         intake = []
         for record in records:
             mapped = {}
             for header, value in record.items():
-                field = self.COLUMN_MAP.get(str(header).strip().lower())
+                field = self._match_field(header)
                 if field and value is not None and str(value).strip() != "":
-                    mapped[field] = value
-            if mapped.get("team_number") is not None:
+                    mapped[field] = str(value).strip()
+            if mapped.get("team_name") or mapped.get("team_number_raw"):
                 intake.append(mapped)
         return intake
+
+    def dedupe_first(self, rows: list[dict]) -> list[dict]:
+        """Single submission policy keyed on team identity (team number if present, else
+        team name). Sheet order is chronological, so first occurrence = first submission.
+        Assigns a stable sequential team_number (1..N) in first-appearance order."""
+        first: dict[str, dict] = {}
+        order: list[str] = []
+        for row in rows:
+            key = self._identity_key(row)
+            if key in ("num:", "name:") or key in first:
+                continue
+            order.append(key)
+            first[key] = dict(row)
+        results = []
+        for i, key in enumerate(order, 1):
+            row = first[key]
+            row["team_number"] = i
+            results.append(row)
+        return results
+
+    def ignored_resubmissions(self, rows: list[dict]) -> dict[str, int]:
+        """Team identities that submitted more than once -> how many entries were dropped."""
+        counts: dict[str, int] = {}
+        seen: set[str] = set()
+        for row in rows:
+            key = self._identity_key(row)
+            if key in ("num:", "name:"):
+                continue
+            if key in seen:
+                counts[key] = counts.get(key, 0) + 1
+            else:
+                seen.add(key)
+        return counts
 
     # --- write-back (service is the sole writer of these tabs) ---
 
