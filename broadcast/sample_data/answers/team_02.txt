@@ -1,0 +1,2 @@
+Our first paying user is a freight clerk at a Port Klang forwarder — we sat with her for two days and built the flow around her exact Tuesday batch.
+The agent decides the routing itself; we only hard-code the guardrails for customs fields where a wrong answer costs a penalty.

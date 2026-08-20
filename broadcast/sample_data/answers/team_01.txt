@@ -1,0 +1,2 @@
+We validate inputs at the agent boundary — every document passes a schema check before the agent touches it, and malformed fields bounce back to the operator queue instead of failing silently.
+The staged part is the login; everything after — extraction, field mapping, and the customs form fill — runs unscripted on the live document.

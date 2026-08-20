@@ -1,0 +1,8 @@
+{
+  "event": "Build with AI Agents",
+  "segments": [
+    "case_03.json",
+    "case_02.json",
+    "case_01.json"
+  ]
+}

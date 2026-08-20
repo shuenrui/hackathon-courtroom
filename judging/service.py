@@ -92,6 +92,7 @@ def judge_submission(
         "team_name": submission.get("team_name", ""),
         "captain_contact": submission.get("captain_contact", ""),
         "submitted_at": submission.get("submitted_at", ""),
+        "problem_statement": submission.get("problem_statement", ""),
         "project_url": submission.get("project_url", ""),
         "url_smoke": {
             "reachable": url_evidence.get("reachable"),

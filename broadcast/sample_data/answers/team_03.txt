@@ -1,0 +1,2 @@
+The improvisation moment is the exception handler — when the portal layout changed mid-run, the agent re-mapped the form without a redeploy.
+We keep a human in the loop for anything above the value threshold; below it, the agent files end to end.
