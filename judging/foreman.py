@@ -122,6 +122,35 @@ def build_shortlist_announcement(shortlist: list[dict], alternates: list[dict]) 
     return strip_scores("\n".join(lines))
 
 
+def build_brief(results: list[dict], shortlist: dict) -> str:
+    """Cold-start brief: everything a fresh Foreman session needs to resume."""
+    contested = [e["team_number"] for e in results if e.get("contested")]
+    flagged = [(e["team_number"], ", ".join(e.get("flags", []))) for e in results if e.get("flags")]
+    dropped = [(e["team_number"], e.get("dropped_judges")) for e in results if e.get("dropped_judges")]
+    short = [e["team_number"] for e in shortlist.get("shortlist", [])]
+    alternates = [e["team_number"] for e in shortlist.get("alternates", [])]
+
+    lines = [
+        "# Foreman brief — regenerated on every pipeline run",
+        "",
+        f"Cases scored: {len(results)}",
+        f"Contested: {contested if contested else 'none'}",
+        f"Flags for Shuen Rui: {flagged if flagged else 'clean'}",
+        f"Dropped judges: {dropped if dropped else 'none'}",
+        f"Current shortlist projection: {short if short else '—'} (+ alternates {alternates if alternates else '—'})",
+        "",
+        "Milestones: 16:15 clarifications close · 16:30 shortlist lock + spot-check · 16:45 top-six announcement",
+        "",
+        "Case table:",
+    ]
+    for e in results:
+        mark = "CONTESTED" if e.get("contested") else "clean"
+        lines.append(f"  rank {e['rank']:>2} — Team {e['team_number']:>2} [{mark}]")
+    lines.append("")
+    lines.append("Restore routine: read this brief, then out/dialog/ transcripts, then knowledge/lessons.md. Resume mid-state; never start cold.")
+    return strip_scores("\n".join(lines))
+
+
 def write_foreman_artifacts(results: list[dict], shortlist: dict, out_dir) -> None:
     from pathlib import Path
 
@@ -134,6 +163,7 @@ def write_foreman_artifacts(results: list[dict], shortlist: dict, out_dir) -> No
         (base / f"case_{team:02d}_mirror.md").write_text(build_mirror_case(entry))
         (base / f"case_{team:02d}_verdict.md").write_text(build_verdict_line(entry))
 
+    (base / "brief.md").write_text(build_brief(results, shortlist))
     (base / "announcement_shortlist.md").write_text(
         build_shortlist_announcement(shortlist["shortlist"], shortlist["alternates"])
     )

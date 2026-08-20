@@ -32,9 +32,9 @@ intake (CSV/Sheet) ─► Judging Service (deterministic)
 
 ```
 judging/          deterministic service (stdlib + requests + jsonschema)
-schemas/          blind-score JSON schema (the judge contract)
+schemas/          blind-score + reflection JSON schemas (the judge contracts)
 prompts/          sealed prompts: rubric + 3 jurors + Foreman
-specs/            Sheet tabs, Form fields, runbook, templates
+specs/            Sheet tabs, Form fields, runbook, foreman-spec, templates
 tests/            dummy submissions
 config.json       runtime configuration
 ```
