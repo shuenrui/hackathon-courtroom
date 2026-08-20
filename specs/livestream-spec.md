@@ -4,11 +4,16 @@ The audience-facing broadcast. **Discord is the capture layer, never the screen.
 custom broadcast UI that renders captured case logs into produced segments and plays them
 back. Replay-based, not real-time.
 
+**Presentation medium = a live website.** The "stream" is a full-screen **web app (HTML/CSS/JS)**
+shown on the event screen (laptop → Chrome fullscreen → display; venue speakers carry audio).
+It is NOT a YouTube/Twitch broadcast and NOT pre-rendered MP4s — the browser renders the
+playback live. (Decided 2026-08-18.)
+
 ## Locked
 
-- **Replay-based.** Each featured case is rendered into a produced video segment from its
-  captured log, then played back. No raw Discord on screen — it's small and ugly; we design
-  something fun and cool instead.
+- **Replay-based.** Each featured case is prepared into a segment bundle (transcript +
+  pre-generated TTS audio + demo video link) from its captured log, and the web app plays it
+  back. No raw Discord on screen — it's small and ugly; we design something fun and cool instead.
 - **Pre-stream cases replay from 15:00.** Cases judged 14:00–15:00 are captured and rendered
   ahead of time, queued, and replayed once the stream goes live at 15:00. Cases judged
   15:00–16:00 (while live) are captured, rendered, and slotted in with a short delay.
@@ -39,6 +44,9 @@ back. Replay-based, not real-time.
   is fine — some female, some male.
 - **Participants** are voiced too — a shared voice or per-team voice (looser rule).
 - **Foreman** voice: TBD (only if it narrates on stream).
+- **Voices are PRE-GENERATED as audio files** (not live browser TTS) so playback is reliable
+  and the voices are distinct. Proposed engine: Edge-TTS (free, many male/female voices, no
+  API key). Each line of a segment is synthesized once at bundle-prep time.
 
 ## Capacity math
 
@@ -70,9 +78,12 @@ So this is a **rendering problem over existing data**, not a new capture problem
 
 ## Open
 
-- **UI build** — art direction locked ("The Tribunal"); building a sample segment. Shuen Rui
-  has no specific references and has green-lit creative freedom.
+- **Web UI build** — art direction locked ("The Tribunal"); building the full-screen web app
+  that plays back segment bundles. Shuen Rui has green-lit creative freedom (no references).
+- **Segment prep pipeline** — transcript → TTS audio + JSON bundle (the "render" step).
 - **Host / narration model** — Foreman-narrated, human host, or none.
 - **Graphics package** — lower-thirds, top-six reveal visuals, overlays.
-- **Playback runner** — how segments are queued and played from 15:00 (playlist / scheduler).
+- **Playback control** — operator-driven next/pause vs auto-playlist.
 - **TTS voice casting** — pick the actual three judge voices + participant voice(s).
+- **Demo-video connectivity** — demo videos arrive as URL links, so playback needs venue
+  internet; fallback = have teams drop local video files. Confirm venue connectivity.
