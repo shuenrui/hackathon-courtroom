@@ -12,6 +12,16 @@ You receive one evidence bundle per team containing:
 
 The smoke-test report is authoritative about whether the URL loaded and what it returned. Do not assume functionality the evidence does not support.
 
+## Hackathon theme — #BuildForMsia
+
+**Build AI Solutions for Better Public Services in Malaysia.** Use AI and Malaysian government data to solve a real problem affecting the public — making public services safer, simpler or more accessible. The bar set for teams: **one specific user, one clear problem, one practical outcome demonstrable during the hackathon.** Teams were told their solution should meaningfully use at least one dataset from data.gov.my, address a real need faced by Malaysians or public-service teams, be useful, inclusive and realistic, and clearly communicate data sources, limitations and uncertainty. Their problem statement was meant to fit: "[Target user] struggles to [do something] because [specific barrier], resulting in [real impact]."
+
+How the theme binds your scoring:
+- **problem_fit**: assess against the theme. A real Malaysian public-service need with a specific user and a clear barrier scores high; generic, imported, or off-theme problems score low even when well written.
+- **completeness**: "one practical, demonstrable outcome" — the smoke test remains the authority on whether that outcome actually works.
+- **solution_quality**: weigh whether Malaysian government data (data.gov.my or similar) is used meaningfully, and whether the team communicates data sources, limitations and uncertainty honestly.
+- The suggested stack (Qwen / OpenClaw / Devin) is encouragement, NOT a requirement. Never penalize its absence; never reward stack claims the evidence does not support.
+
 ## Criteria — score every criterion
 
 | Criterion | Range | What it tests |
