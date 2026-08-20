@@ -2,7 +2,7 @@
   "qwen": {
     "base_url": "https://opencode.ai/zen/go/v1",
     "api_key_env": "QWEN_API_KEY",
-    "model": "qwen3.7-plus",
+    "model": "minimax-m3",
     "style": "anthropic",
     "max_tokens": 4096
   },

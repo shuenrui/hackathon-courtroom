@@ -101,6 +101,8 @@ def dispatch_to_panel(
             try:
                 raw = client.complete(system, user_message)
                 doc = extract_json(raw)
+                if isinstance(doc.get("judge"), str):
+                    doc["judge"] = doc["judge"].strip().lower()
                 if doc.get("team_number") is None:
                     doc["team_number"] = team_number
                 validator.validate(doc, expected_judge=juror)

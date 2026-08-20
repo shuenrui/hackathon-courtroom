@@ -1,12 +1,25 @@
 import hashlib
 import json
 import os
+from pathlib import Path
 
 import requests
 
 
 class LLMError(Exception):
     pass
+
+
+def _load_dotenv() -> None:
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip())
 
 
 class QwenClient:
@@ -28,6 +41,7 @@ class QwenClient:
 
     @classmethod
     def from_config(cls, qwen_cfg: dict, timebox_sec: int = 300) -> "QwenClient":
+        _load_dotenv()
         api_key = os.environ.get(qwen_cfg.get("api_key_env", "QWEN_API_KEY"), "")
         if not api_key:
             raise LLMError(f"missing API key in env var {qwen_cfg.get('api_key_env')}")
