@@ -76,6 +76,13 @@ class DryRunTransport:
 class DiscordTransport:
     """Live transport: four discord.py clients (Foreman + 3 judges) in one process."""
 
+    NICKNAMES = {
+        "foreman": "The Foreman",
+        "juror_one": "The Builder",
+        "juror_two": "The Skeptic",
+        "juror_three": "The Futurist",
+    }
+
     def __init__(self, config):
         import discord
 
@@ -95,20 +102,34 @@ class DiscordTransport:
         self._channel_cache: dict = {}
 
     async def start(self) -> None:
-        tasks = [
-            self.foreman.start(self.config.tokens["foreman"]),
-        ]
-        for identity in ("juror_one", "juror_two", "juror_three"):
-            tasks.append(self.clients[identity].start(self.config.tokens[identity]))
+        for identity, client in self.clients.items():
+            @client.event
+            async def on_ready(_id=identity):
+                print(f"{_id} connected as {self.clients[_id].user}", flush=True)
+                if _id == "foreman":
+                    self._guild = self.foreman.get_guild(int(self.config.guild_id))
+                    if self._guild is None:
+                        print(f"WARNING: guild {self.config.guild_id} not visible to the Foreman", flush=True)
+                    self._ready.set()
 
-        @self.foreman.event
-        async def on_ready():
-            self._guild = self.foreman.get_guild(int(self.config.guild_id))
-            self._ready.set()
-            print(f"foreman connected as {self.foreman.user}", flush=True)
-
+        tasks = [client.start(self.config.tokens[identity]) for identity, client in self.clients.items()]
         self._gateway_tasks = [asyncio.create_task(t) for t in tasks]
         await asyncio.wait_for(self._ready.wait(), timeout=30)
+        await self._set_nicknames()
+
+    async def _set_nicknames(self) -> None:
+        if self._guild is None:
+            return
+        for identity, nick in self.NICKNAMES.items():
+            client = self.clients[identity]
+            try:
+                await client.wait_until_ready()
+                member = self._guild.get_member(client.user.id)
+                if member is not None and member.nick != nick:
+                    await member.edit(nick=nick)
+                    print(f"{identity} nickname set: {nick}", flush=True)
+            except Exception as exc:
+                print(f"nickname set failed for {identity}: {exc.__class__.__name__}", flush=True)
 
     async def close(self) -> None:
         for client in self.clients.values():

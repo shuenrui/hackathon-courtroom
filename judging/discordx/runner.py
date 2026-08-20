@@ -53,7 +53,7 @@ async def run_live(args) -> int:
         config.intake = args.intake
 
     transport = DiscordTransport(config)
-    flow = CaseFlow(transport, config, out_dir=args.out)
+    flow = CaseFlow(transport, config, out_dir=args.out, mock=args.mock)
     discord_mod = transport._discord
     foreman = transport.foreman
 
@@ -98,6 +98,7 @@ def main() -> int:
     parser.add_argument("--out", default=str(REPO_ROOT / "out"))
     parser.add_argument("--intake", default=None, help="override intake source ('sheet' or a file path)")
     parser.add_argument("--dry-run", action="store_true", help="simulate everything, send nothing")
+    parser.add_argument("--mock", action="store_true", help="live Discord, but mock jurors (no API key needed) — rehearsal mode")
     parser.add_argument("--real-clock", action="store_true", help="dry-run with the real 7-minute clock (default: compressed)")
     parser.add_argument("--simulate-ping", type=int, default=1, help="team number for the simulated ping (dry-run)")
     args = parser.parse_args()

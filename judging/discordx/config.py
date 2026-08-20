@@ -11,6 +11,17 @@ class DiscordNotProvisioned(Exception):
     pass
 
 
+def load_dotenv(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip())
+
+
 @dataclass
 class DiscordConfig:
     guild_id: str
@@ -23,6 +34,7 @@ class DiscordConfig:
 
     @classmethod
     def load(cls, config_path: str, require_tokens: bool = True) -> "DiscordConfig":
+        load_dotenv(Path(config_path).resolve().parent / ".env")
         cfg = json.loads(Path(config_path).read_text()).get("discord", {})
         if not cfg:
             raise DiscordNotProvisioned("no 'discord' block in config.json")
