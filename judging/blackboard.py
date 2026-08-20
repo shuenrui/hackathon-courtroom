@@ -2,6 +2,8 @@ import csv
 import json
 from pathlib import Path
 
+from .foreman import strip_scores
+
 
 class Blackboard:
     def load_intake(self, path: str) -> list[dict]:
@@ -96,6 +98,7 @@ class SheetsBlackboard(Blackboard):
         ("team name", "team_name"),
         ("team number", "team_number_raw"),
         ("team no", "team_number_raw"),
+        ("github", "github_repo"),
         ("email", "captain_contact"),
         ("phone", "captain_phone"),
         ("track", "track"),
@@ -103,7 +106,7 @@ class SheetsBlackboard(Blackboard):
         ("timestamp", "submitted_at"),
     ]
 
-    TAB_JUDGING = "Judging"
+    TAB_JUDGING = "Judging Sheet"
     TAB_SHORTLIST = "Shortlist"
 
     @classmethod
@@ -217,19 +220,26 @@ class SheetsBlackboard(Blackboard):
         averages = entry.get("averages", {})
         smoke = entry.get("url_smoke", {})
         juror_totals = {doc.get("judge"): doc.get("total") for doc in entry.get("blind_scores", [])}
+        juror_comments = {
+            doc.get("judge"): strip_scores((doc.get("review") or "").strip())
+            for doc in entry.get("blind_scores", [])
+        }
+        questions = []
+        for doc in entry.get("blind_scores", []):
+            questions.extend(strip_scores(q.strip()) for q in (doc.get("questions") or []) if q.strip())
         return {
             "team_number": entry.get("team_number"),
             "team_name": entry.get("team_name", ""),
-            "captain_contact": entry.get("captain_contact", ""),
             "submitted_at": entry.get("submitted_at", ""),
+            "project_url": entry.get("project_url", ""),
+            "github_repo": entry.get("github_repo", ""),
+            "demo_video_url": entry.get("demo_video_url", ""),
             "url_reachable": smoke.get("reachable"),
             "url_status": smoke.get("status_code", ""),
             "url_flags": ", ".join(smoke.get("flags", [])),
-            "sanitization_flags": ", ".join(entry.get("sanitization_flags", [])),
             "juror_one_total": juror_totals.get("juror_one", ""),
             "juror_two_total": juror_totals.get("juror_two", ""),
             "juror_three_total": juror_totals.get("juror_three", ""),
-            "dropped_judges": ", ".join(f"{j}: {r}" for j, r in entry.get("dropped_judges", {}).items()),
             "avg_completeness": averages.get("completeness", ""),
             "avg_agent_mastery": averages.get("agent_mastery", ""),
             "avg_problem_fit": averages.get("problem_fit", ""),
@@ -241,6 +251,10 @@ class SheetsBlackboard(Blackboard):
             "rank": entry.get("rank", ""),
             "status": entry.get("status", ""),
             "flags": ", ".join(entry.get("flags", [])),
+            "juror_one_comment": juror_comments.get("juror_one", ""),
+            "juror_two_comment": juror_comments.get("juror_two", ""),
+            "juror_three_comment": juror_comments.get("juror_three", ""),
+            "questions_asked": " | ".join(questions),
             "deliberation_note": "",
         }
 

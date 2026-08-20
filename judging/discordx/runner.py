@@ -69,7 +69,7 @@ async def run_live(args) -> int:
             return
 
         if message.channel.id == submissions_id:
-            team = resolver.resolve(message.content)
+            team = await asyncio.to_thread(resolver.resolve, message.content)
             mentioned = foreman.user in message.mentions
             print(f"[submissions] {message.author}: {message.content[:80]!r} | mention={mentioned} | resolved={team}", flush=True)
             if mentioned:

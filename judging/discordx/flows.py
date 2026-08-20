@@ -17,15 +17,21 @@ class TeamResolver:
     def __init__(self, config):
         self._by_name: dict[str, int] = {}
         self._by_number: dict[int, str] = {}
+        self._config = config
+        self._load()
+
+    def _load(self) -> None:
         from ..blackboard import Blackboard, SheetsBlackboard
 
-        if config.intake == "sheet":
+        self._by_name = {}
+        self._by_number = {}
+        if self._config.intake == "sheet":
             cfg = json.loads((REPO_ROOT / "config.json").read_text())["sheets"]
             board = SheetsBlackboard(cfg["credentials_path"], cfg["spreadsheet_id"])
             rows = board.load_intake()
         else:
             board = Blackboard()
-            rows = board.load_intake(config.intake)
+            rows = board.load_intake(self._config.intake)
         for row in board.dedupe_first(rows):
             num = row.get("team_number")
             if num is None:
@@ -39,6 +45,18 @@ class TeamResolver:
         return len(self._by_number)
 
     def resolve(self, text: str) -> int | None:
+        """Resolve a ping to a team number. Refreshes from the sheet on a miss so
+        teams that submitted after startup are picked up on their first ping."""
+        num = self._resolve_cached(text)
+        if num is None:
+            try:
+                self._load()
+            except Exception as exc:
+                print(f"resolver refresh failed: {exc.__class__.__name__}", flush=True)
+            num = self._resolve_cached(text)
+        return num
+
+    def _resolve_cached(self, text: str) -> int | None:
         match = re.search(r"\bteam\s*#?\s*(\d+)\b", text, re.IGNORECASE)
         if match:
             num = int(match.group(1))
