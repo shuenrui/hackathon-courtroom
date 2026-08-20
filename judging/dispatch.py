@@ -1,4 +1,5 @@
 import json
+import re
 from concurrent.futures import ThreadPoolExecutor
 
 from .evidence import render_bundle_for_prompt, wrap_untrusted
@@ -7,6 +8,21 @@ from .qwen_client import LLMError
 
 JURORS = ("juror_one", "juror_two", "juror_three")
 REFLECTORS = ("juror_one", "juror_two", "juror_three", "foreman")
+
+JUDGE_ALIASES = {
+    "juror_one": "juror_one", "juror_one_": "juror_one", "juror 1": "juror_one",
+    "the_builder": "juror_one", "builder": "juror_one",
+    "juror_two": "juror_two", "juror 2": "juror_two",
+    "the_skeptic": "juror_two", "skeptic": "juror_two",
+    "juror_three": "juror_three", "juror 3": "juror_three",
+    "the_futurist": "juror_three", "futurist": "juror_three",
+}
+
+
+def normalize_judge(value) -> str | None:
+    """Map any judge label variant (case, spaces, persona names) to a juror id."""
+    key = re.sub(r"[\s\-]+", "_", str(value or "").strip().lower()).strip("_")
+    return JUDGE_ALIASES.get(key)
 
 REFLECTION_CONTRACT_SUFFIX = """
 
@@ -113,8 +129,11 @@ def dispatch_to_panel(
             try:
                 raw = client.complete(system, user_message)
                 doc = extract_json(raw)
-                if isinstance(doc.get("judge"), str):
-                    doc["judge"] = doc["judge"].strip().lower()
+                mapped = normalize_judge(doc.get("judge"))
+                if mapped is not None and mapped != juror:
+                    doc["judge"] = mapped
+                else:
+                    doc["judge"] = juror
                 if doc.get("team_number") is None:
                     doc["team_number"] = team_number
                 validator.validate(doc, expected_judge=juror)
