@@ -36,16 +36,13 @@ The Foreman's memory lives outside itself:
 Any session start: read the brief → resume mid-state. A Foreman crash at 15:20 is not
 memory loss — spawn a new session, point it at the brief.
 
-## 3. Transport — decision needed (by 19 Aug rehearsal)
+## 3. Transport — DECIDED: Discord-native (Option A, 2026-08-18)
 
-- **Option A (recommended): Discord-native.** Hermes + a Discord adapter. The whole event
-  lives in Discord; no bridge, no extra hop. Requires wiring Hermes to Discord (it is
-  Telegram-native today).
-- **Option B: Telegram-native Hermes + Discord bridge.** Reuses the existing Hermes setup
-  pattern (Window/Carpet), but adds one translating hop that must survive event load.
+The Foreman's Hermes instance connects **directly to Discord** via a Discord adapter/bot —
+it reads and posts in the case threads itself. No bridge, no extra hop.
 
-The capability contract above is identical either way — the transport is an adapter at the
-edge, not a redesign.
+Setup work: wire Hermes to Discord (it is Telegram-native today). The Telegram-bridge
+option (B) was rejected: a relay hop in the critical path is a live-event risk.
 
 ## 4. Fallback (go/no-go on 21 Aug)
 
