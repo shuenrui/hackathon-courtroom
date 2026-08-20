@@ -13,7 +13,13 @@ back. Replay-based, not real-time.
   ahead of time, queued, and replayed once the stream goes live at 15:00. Cases judged
   15:00–16:00 (while live) are captured, rendered, and slotted in with a short delay.
 - **Only a subset is featured.** 50–70 teams expected (fewer after drop-off); a 2-hour window
-  can't fit everyone. Proposed selection: shortlist + alternates + contested cases.
+  can't fit everyone. **Selection = curated "fun picks"**: from all judged teams, feature the
+  ones with a great demo video, a novel idea, or a good story — not strictly high scores.
+  Target **~14–16 segments**. The feature decision is made per-case as judging completes
+  (render + queue) until the target is hit.
+- **No scores on stream — ever.** Scores/rankings are private. Each segment ends after the
+  Q&A on a "the jury deliberates…" button; the only public reveal is the 16:45 top-six
+  (names only). This keeps the announcement surprising.
 - **Replay compresses time.** The 7-min live Q&A clock includes participant thinking/typing
   time. The rendered segment voices only the actual messages (~3 min), so dead air is stripped.
 - **All dialogue is voiced (TTS).** Not plain text on screen.
@@ -37,8 +43,20 @@ back. Replay-based, not real-time.
 ## Capacity math
 
 - Segment ≈ 3 min demo video + ~3 min voiced dialogue + transitions ≈ **6–7 min**.
-- 2-hour window (15:00–17:00) → **~17 slots**.
-- Expected feature set (shortlist 6 + alternates 2 + contested ≈ 8–12) → fits with buffer.
+- 2-hour window (15:00–17:00) minus stream open (~5 min) and the 16:45 top-six announcement
+  (~10 min) → ~100–110 min for team segments → **~14–16 slots**.
+- Feature pool = all judged teams; pick ~14–16 fun/compelling ones.
+
+## Design direction (art direction locked, build in progress)
+
+**"The Tribunal"** — the AI jury puts each build on trial. Leans into the courtroom language
+already in the system (Foreman, jury, deliberation, verdict, gavel). Dramatic + fun, not a
+generic esports overlay.
+
+- Three judge benches, each a character with a color + distinct TTS voice:
+  **Builder** (amber, practical) · **Skeptic** (cyan, probing) · **Futurist** (violet, visionary).
+- Demo video on an "evidence screen"; Q&A as stylized cross-examination with nameplates.
+- Gavel transitions; segments close on "the jury deliberates…" (no scores).
 
 ## Data source (already built)
 
@@ -52,9 +70,9 @@ So this is a **rendering problem over existing data**, not a new capture problem
 
 ## Open
 
-- **Selection rule** — confirm which teams get featured (proposed: shortlist + alternates +
-  contested).
-- **UI design** — awaiting Shuen Rui's reference images; then design the broadcast look.
+- **UI build** — art direction locked ("The Tribunal"); building a sample segment. Shuen Rui
+  has no specific references and has green-lit creative freedom.
 - **Host / narration model** — Foreman-narrated, human host, or none.
 - **Graphics package** — lower-thirds, top-six reveal visuals, overlays.
 - **Playback runner** — how segments are queued and played from 15:00 (playlist / scheduler).
+- **TTS voice casting** — pick the actual three judge voices + participant voice(s).
