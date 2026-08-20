@@ -320,6 +320,74 @@ def poll_pipeline(args) -> int:
     return 0
 
 
+def deliberate_pipeline(args) -> int:
+    """Post-kick deliberation: the panel argues the record with all blind scores revealed."""
+    from .dispatch import dispatch_deliberations
+    from .foreman import JUROR_DISPLAY
+
+    config = load_config(args.config)
+    _rubric, juror_prompts, _foreman_prompt = load_prompts(config)
+    client = build_client(config, args.mock)
+
+    judging_path = Path(args.out) / "judging.json"
+    if not judging_path.exists():
+        print("no judging results — run scoring first", file=sys.stderr)
+        return 2
+    results = json.loads(judging_path.read_text())
+    entry = next((e for e in results if e.get("team_number") == args.team), None)
+    if entry is None:
+        print(f"team {args.team} not in judging results", file=sys.stderr)
+        return 2
+
+    answers = []
+    if args.answers:
+        answers_path = Path(args.answers)
+        if answers_path.exists():
+            answers = [line.strip() for line in answers_path.read_text().splitlines() if line.strip()]
+
+    record = json.dumps(
+        {
+            "team_number": entry["team_number"],
+            "url_smoke": entry.get("url_smoke", {}),
+            "contested": entry.get("contested"),
+            "spread": entry.get("spread"),
+            "blind_scores": [
+                {
+                    "judge": d.get("judge"),
+                    "total": d.get("total"),
+                    "scores": d.get("scores"),
+                    "review": d.get("review"),
+                    "questions": d.get("questions"),
+                    "evidence": d.get("evidence"),
+                }
+                for d in entry.get("blind_scores", [])
+            ],
+            "team_answers": answers,
+        },
+        indent=2,
+        ensure_ascii=False,
+    )
+
+    docs, dropped = dispatch_deliberations(
+        record, client, juror_prompts, retries=config["dispatch"]["retries"]
+    )
+    if dropped:
+        print(f"dropped deliberators: {dropped}", file=sys.stderr)
+
+    base = Path(args.out) / "foreman"
+    base.mkdir(parents=True, exist_ok=True)
+    (base / f"case_{args.team:02d}_deliberation.json").write_text(
+        json.dumps(docs, indent=2, ensure_ascii=False)
+    )
+    lines = [f"# Deliberation — Case T{args.team:02d}", ""]
+    for doc in docs:
+        lines.append(f"**{JUROR_DISPLAY.get(doc['judge'], doc['judge'])}:** {doc['statement']}")
+        lines.append("")
+    (base / f"case_{args.team:02d}_deliberation.md").write_text("\n".join(lines))
+    print(f"deliberation complete: {len(docs)} statements")
+    return 0 if docs else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="judging.service", description="Round 1 judging pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -371,6 +439,16 @@ def main() -> int:
     reflect_parser.add_argument("--out", default=str(REPO_ROOT / "out"))
     reflect_parser.add_argument("--mock", action="store_true")
 
+    delib_parser = sub.add_parser(
+        "deliberate",
+        help="post-kick deliberation: panel argues the record with all blind scores revealed",
+    )
+    delib_parser.add_argument("--team", type=int, required=True)
+    delib_parser.add_argument("--answers", default=None, help="file with the team's answers, one per line")
+    delib_parser.add_argument("--config", default=str(REPO_ROOT / "config.json"))
+    delib_parser.add_argument("--out", default=str(REPO_ROOT / "out"))
+    delib_parser.add_argument("--mock", action="store_true")
+
     args = parser.parse_args()
     if args.command == "run":
         return run_pipeline(args)
@@ -380,6 +458,8 @@ def main() -> int:
         return summon_pipeline(args)
     if args.command == "reflect":
         return reflect_pipeline(args)
+    if args.command == "deliberate":
+        return deliberate_pipeline(args)
     if args.command == "answer":
         if args.team is None:
             return 2

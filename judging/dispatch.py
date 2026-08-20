@@ -53,6 +53,18 @@ substantive and specific to THIS submission. Your scores never leave the courtro
 """
 
 
+DELIBERATION_CONTRACT_SUFFIX = """
+
+DELIBERATION PASS — follow exactly:
+The team has left the room. Their answers are on the record, and you can now see all three
+blind scores. Speak to the bench: say whether the answers changed your read, where you agree
+or diverge with the other jurors, and what the record ultimately shows. If the panel is split,
+address the split directly. Do NOT propose changing any score — blind scores are final.
+Respond with ONE JSON object and nothing else. No prose, no markdown fences. Schema:
+{"judge": "<your juror id>", "statement": "<2-4 sentences, in your persona's voice>"}
+"""
+
+
 class DispatchResult:
     def __init__(self):
         self.scores: list[dict] = []
@@ -148,6 +160,47 @@ def serialize_dispatch(result: DispatchResult) -> dict:
 
 def build_reflection_prompt(persona_prompt: str) -> str:
     return persona_prompt.strip() + REFLECTION_CONTRACT_SUFFIX
+
+
+def dispatch_deliberations(
+    case_record: str,
+    client,
+    prompts: dict[str, str],
+    retries: int = 1,
+) -> tuple[list[dict], dict[str, str]]:
+    """Post-kick deliberation: each juror sees all blind scores + the team's answers
+    and speaks to the bench. Scores stay final; this is the panel arguing the record."""
+    docs: list[dict] = []
+    dropped: dict[str, str] = {}
+    user_message = wrap_untrusted(case_record)
+
+    for judge in JURORS:
+        persona_prompt = prompts.get(judge, "")
+        if not persona_prompt:
+            dropped[judge] = "missing_persona_prompt"
+            continue
+
+        system = persona_prompt.strip() + DELIBERATION_CONTRACT_SUFFIX
+        doc = None
+        last_error = ""
+        for _attempt in range(retries + 1):
+            try:
+                raw = client.complete(system, user_message)
+                parsed = extract_json(raw)
+                statement = str(parsed.get("statement") or "").strip()
+                if len(statement) < 20:
+                    raise ValueError("statement too short")
+                doc = {"judge": judge, "statement": statement[:1300]}
+                break
+            except Exception as exc:
+                last_error = f"{exc.__class__.__name__}: {exc}"
+
+        if doc is not None:
+            docs.append(doc)
+        else:
+            dropped[judge] = last_error
+
+    return docs, dropped
 
 
 def dispatch_reflections(

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from .config import DiscordConfig, DiscordNotProvisioned
-from .flows import CaseFlow
+from .flows import CaseFlow, TeamResolver
 from .transport import DryRunTransport, DiscordTransport
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -52,8 +52,11 @@ async def run_live(args) -> int:
     if args.intake:
         config.intake = args.intake
 
+    resolver = TeamResolver(config)
+    print(f"team resolver loaded: {len(resolver)} teams from intake '{config.intake}'", flush=True)
+
     transport = DiscordTransport(config)
-    flow = CaseFlow(transport, config, out_dir=args.out, mock=args.mock)
+    flow = CaseFlow(transport, config, out_dir=args.out, mock=args.mock, resolver=resolver)
     discord_mod = transport._discord
     foreman = transport.foreman
 
@@ -65,14 +68,17 @@ async def run_live(args) -> int:
         if message.author.bot:
             return
 
-        if message.channel.id == submissions_id and foreman.user in message.mentions:
-            team = parse_team(message.content)
-            if team is None:
-                await message.channel.send(
-                    "I could not read a team number — format: `Team 12, done submitting @Foreman`."
-                )
-                return
-            asyncio.create_task(flow.handle_ping(team, str(message.author), message.author.id))
+        if message.channel.id == submissions_id:
+            team = resolver.resolve(message.content)
+            mentioned = foreman.user in message.mentions
+            print(f"[submissions] {message.author}: {message.content[:80]!r} | mention={mentioned} | resolved={team}", flush=True)
+            if mentioned:
+                if team is None:
+                    await message.channel.send(
+                        "I could not match a team — include your team name (as submitted) or `Team 12`, and mention me."
+                    )
+                    return
+                asyncio.create_task(flow.handle_ping(team, str(message.author), message.author.id))
             return
 
         channel = message.channel

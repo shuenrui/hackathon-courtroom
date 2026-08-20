@@ -147,6 +147,16 @@ class MockQwenClient:
         if team_number is None:
             team_number = 1
 
+        if "DELIBERATION PASS" in system:
+            return json.dumps({
+                "judge": persona,
+                "statement": (
+                    f"Mock deliberation ({persona}, case {team_number:02d}): the answers are on the "
+                    "record and my blind read stands. Where this panel splits is about evidence, not "
+                    "instinct — the write-up promises more than the smoke test confirmed."
+                ),
+            })
+
         if "REFLECTION PASS" in system:
             judge = "foreman" if "THE FOREMAN" in system.upper() else persona
             payload = {

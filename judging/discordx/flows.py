@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -10,13 +11,59 @@ from ..foreman import JUROR_DISPLAY, strip_scores
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
+class TeamResolver:
+    """Resolve a ping to a team number: explicit 'Team N' or a known team name from intake."""
+
+    def __init__(self, config):
+        self._by_name: dict[str, int] = {}
+        self._by_number: dict[int, str] = {}
+        from ..blackboard import Blackboard, SheetsBlackboard
+
+        if config.intake == "sheet":
+            cfg = json.loads((REPO_ROOT / "config.json").read_text())["sheets"]
+            board = SheetsBlackboard(cfg["credentials_path"], cfg["spreadsheet_id"])
+            rows = board.load_intake()
+        else:
+            board = Blackboard()
+            rows = board.load_intake(config.intake)
+        for row in board.dedupe_first(rows):
+            num = row.get("team_number")
+            if num is None:
+                continue
+            name = str(row.get("team_name") or "").strip()
+            self._by_number[num] = name
+            if name:
+                self._by_name[name.lower()] = num
+
+    def __len__(self) -> int:
+        return len(self._by_number)
+
+    def resolve(self, text: str) -> int | None:
+        match = re.search(r"\bteam\s*#?\s*(\d+)\b", text, re.IGNORECASE)
+        if match:
+            num = int(match.group(1))
+            if num in self._by_number:
+                return num
+        lower = text.lower()
+        best_name, best_num = "", None
+        for name, num in self._by_name.items():
+            if name in lower and len(name) > len(best_name):
+                best_name, best_num = name, num
+        return best_num
+
+    def label(self, team_number: int) -> str:
+        name = self._by_number.get(team_number, "")
+        return f"Team {team_number} — {name}" if name else f"Team {team_number}"
+
+
 class CaseFlow:
     """One case, start to finish: ping → thread → jury → Q&A clock → kick → verdict → mirror → reflect."""
 
-    def __init__(self, transport, config, out_dir: str = "out", mock: bool = False):
+    def __init__(self, transport, config, out_dir: str = "out", mock: bool = False, resolver=None):
         self.transport = transport
         self.config = config
         self.mock = mock
+        self.resolver = resolver
         self.out_dir = Path(out_dir)
         self.state_path = self.out_dir / "discord_state.json"
         self.state = self._load_state()
@@ -35,6 +82,11 @@ class CaseFlow:
     def is_locked(self, team_number: int) -> bool:
         return team_number in self.state["completed"] or team_number in self.state["active"]
 
+    def _label(self, team_number: int) -> str:
+        if self.resolver is not None:
+            return self.resolver.label(team_number)
+        return f"Team {team_number}"
+
     def record_answer(self, team_number: int, author: str, text: str) -> None:
         if team_number in self.answers:
             self.answers[team_number].append(f"{author}: {text}")
@@ -43,7 +95,7 @@ class CaseFlow:
         if self.is_locked(team_number):
             await self.transport.post(
                 "foreman", "submissions",
-                f"Team {team_number} — your slot is already locked (single submission). "
+                f"{self._label(team_number)} — your slot is already locked (single submission). "
                 "The first entry stands; resubmissions are ignored.",
             )
             return
@@ -64,7 +116,7 @@ class CaseFlow:
         )
         await self.transport.post(
             "foreman", "live_feed",
-            f"A new case is called — Team {team_number} steps before the bench. The jury is reading.",
+            f"A new case is called — {self._label(team_number)} steps before the bench. The jury is reading.",
         )
 
         entry = await self._run_jury(team_number, handle)
@@ -123,7 +175,7 @@ class CaseFlow:
             if questions:
                 numbered = "\n".join(f"{i}. {q}" for i, q in enumerate(questions, 1))
                 await self.transport.post_to_thread(
-                    handle, judge, f"**Questions for Team {team_number}:**\n{numbered}"
+                    handle, judge, f"**Questions for {self._label(team_number)}:**\n{numbered}"
                 )
 
         dropped = entry.get("dropped_judges") or {}
@@ -132,7 +184,7 @@ class CaseFlow:
 
         await self.transport.post_to_thread(
             handle, "foreman",
-            f"**Team {team_number} — the floor is yours.** The shared clock starts NOW: "
+            f"**{self._label(team_number)} — the floor is yours.** The shared clock starts NOW: "
             f"{self.config.qna_minutes} minutes for answers and follow-ups, all in this thread. "
             "When it hits zero the phase freezes.",
         )
@@ -163,13 +215,15 @@ class CaseFlow:
 
         await self.transport.post_to_thread(
             handle, "foreman",
-            f"**Time.** The Q&A phase for Team {team_number} is frozen; answers are logged. "
+            f"**Time.** The Q&A phase for {self._label(team_number)} is frozen; answers are logged. "
             "The participant leaves the room — this thread is now the courtroom.",
         )
         if participant_id is not None:
             await self.transport.remove_participant(handle, participant_id)
 
     async def _close_case(self, handle, team_number: int) -> None:
+        await self._run_deliberation(handle, team_number)
+
         verdict_path = self.out_dir / "foreman" / f"case_{team_number:02d}_verdict.md"
         mirror_path = self.out_dir / "foreman" / f"case_{team_number:02d}_mirror.md"
 
@@ -197,6 +251,33 @@ class CaseFlow:
         await self.transport.post_to_thread(
             handle, "foreman", f"Case T{team_number:02d} closed and sealed. The bench moves on."
         )
+
+    async def _run_deliberation(self, handle, team_number: int) -> None:
+        await self.transport.post_to_thread(
+            handle, "foreman",
+            "The participant has left. **The court deliberates.** All blind scores are now on the bench.",
+        )
+        result = await asyncio.to_thread(
+            subprocess.run,
+            [
+                sys.executable, "-m", "judging.service", "deliberate",
+                "--team", str(team_number),
+                "--answers", str(self.out_dir / "answers" / f"team_{team_number:02d}.txt"),
+                "--out", str(self.out_dir),
+            ] + (["--mock"] if self.mock else []),
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=600,
+        )
+        delib_path = self.out_dir / "foreman" / f"case_{team_number:02d}_deliberation.json"
+        if result.returncode != 0 or not delib_path.exists():
+            await self._escalate(f"team {team_number}: deliberation pass failed")
+            return
+        for doc in json.loads(delib_path.read_text()):
+            judge = doc.get("judge")
+            statement = (doc.get("statement") or "").strip()
+            if judge in JUROR_DISPLAY and statement:
+                await self.transport.post_to_thread(
+                    handle, judge, f"**{JUROR_DISPLAY[judge]}:** {statement}"
+                )
 
     async def _escalate(self, message: str) -> None:
         await self.transport.post("foreman", "ops", f"⚠️ {message} — @Shuen Rui")
