@@ -1,7 +1,8 @@
-out/
-__pycache__/
 *.pyc
-.env
-service-account*.json
 *service_account*.json
+.env
+__pycache__/
 google-credentials*.json
+knowledge/
+out/
+service-account*.json

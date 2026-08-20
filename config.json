@@ -45,5 +45,26 @@
   "sheets": {
     "credentials_path": "",
     "spreadsheet_id": ""
+  },
+  "discord": {
+    "guild_id": "1483829659090026518",
+    "channels": {
+      "submissions": "1539843506674339890",
+      "cases": "1539843565482418196",
+      "live_feed": "1539843599376715846",
+      "announcements": "1539843665617231914",
+      "ops": "1539843769765986324",
+      "bot_health": "1539843831531442217"
+    },
+    "token_env": {
+      "foreman": "DISCORD_TOKEN_FOREMAN",
+      "juror_one": "DISCORD_TOKEN_JUROR_ONE",
+      "juror_two": "DISCORD_TOKEN_JUROR_TWO",
+      "juror_three": "DISCORD_TOKEN_JUROR_THREE"
+    },
+    "intake": "sheet",
+    "qna_minutes": 7,
+    "heartbeat_minutes": 15,
+    "countdown_marks_sec": [180, 60, 10]
   }
 }

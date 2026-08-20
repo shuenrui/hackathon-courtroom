@@ -78,6 +78,8 @@ So this is a **rendering problem over existing data**, not a new capture problem
 
 ## Open
 
+- **Layout rework** — v1 built and working (71daafd) but Shuen Rui is not happy with the
+  layout; revisit later. Bring references or name what feels wrong before redesigning.
 - **Web UI build** — art direction locked ("The Tribunal"); building the full-screen web app
   that plays back segment bundles. Shuen Rui has green-lit creative freedom (no references).
 - **Segment prep pipeline** — transcript → TTS audio + JSON bundle (the "render" step).
