@@ -3,6 +3,14 @@
 Moves the full judging stack (transport + jury + Foreman voice) to a dedicated
 always-on device. The laptop stays as cold failover: everything still runs there.
 
+**Primary target: Orange Pi 5 Ultra (ARM64 Linux) — use `deploy/orangepi.md`**,
+which has the device-specific commands, systemd unit, and bundle transfer flow.
+This runbook is the generic/failover version.
+
+Note: `knowledge/` and `out/` are gitignored. A fresh clone needs the migration
+bundle (`deploy/bundle.sh` on the source machine → `deploy/unbundle.sh` on the
+target) or the jury starts without its theme briefing and accumulated lessons.
+
 ## 0. Prerequisites
 
 - Device is physically at the venue, on venue power + internet, and stays awake

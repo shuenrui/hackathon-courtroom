@@ -6,3 +6,4 @@ google-credentials*.json
 knowledge/
 out/
 service-account*.json
+hackathon-migration.tar.gz

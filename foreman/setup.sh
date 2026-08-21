@@ -30,7 +30,7 @@ case "$PRESET" in
 esac
 
 if ! command -v hermes >/dev/null 2>&1; then
-  echo "hermes binary not found — install Hermes Agent first, then re-run." >&2
+  echo "hermes not found — install first: curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash" >&2
   exit 1
 fi
 

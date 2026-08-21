@@ -1,0 +1,16 @@
+[Unit]
+Description=Hackathon judging Discord transport (Foreman + jury)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=opi
+WorkingDirectory=/home/opi/hackathon-judging
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/opi/hackathon-judging/.venv/bin/python -m judging.discordx.runner
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
