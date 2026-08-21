@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import re
 import sys
+import threading
 from pathlib import Path
 
 from .config import DiscordConfig, DiscordNotProvisioned
@@ -26,6 +27,7 @@ async def run_dry_run(args) -> int:
         config.heartbeat_minutes = 1 / 60
     transport = DryRunTransport(config)
     flow = CaseFlow(transport, config, out_dir=args.out, mock=True)
+    threading.Thread(target=flow.voice.warm, daemon=True).start()
 
     await transport.start()
     heartbeat = asyncio.create_task(flow.heartbeat_loop())
@@ -57,6 +59,7 @@ async def run_live(args) -> int:
 
     transport = DiscordTransport(config)
     flow = CaseFlow(transport, config, out_dir=args.out, mock=args.mock, resolver=resolver)
+    threading.Thread(target=flow.voice.warm, daemon=True).start()
     discord_mod = transport._discord
     foreman = transport.foreman
 

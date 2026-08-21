@@ -70,5 +70,12 @@
       60,
       10
     ]
+  },
+  "foreman_voice": {
+    "enabled": false,
+    "hermes_home": "~/.hermes-foreman",
+    "binary": "hermes",
+    "timeout_sec": 40,
+    "max_wait_sec": 20
   }
 }

@@ -53,7 +53,7 @@ way — the spectacle degrades, the judging does not.
 
 ## 5. Provisioning checklist
 
-- [ ] New Hermes instance (separate mission from Window/Carpet; do NOT touch them)
+- [ ] New Hermes instance — a fresh, single-mission agent in its own environment (not Window, not Carpet; no shared state)
 - [ ] Persona loaded from `prompts/foreman.md`
 - [ ] Discord bot **"The Foreman"** with admin access (create threads, add/remove members, post)
 - [ ] Transport wiring per option A/B decision

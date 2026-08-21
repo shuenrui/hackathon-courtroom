@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..foreman import JUROR_DISPLAY, strip_scores
+from ..voice import ForemanVoice
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -87,6 +88,33 @@ class CaseFlow:
         self.state = self._load_state()
         self.answers: dict[int, list[str]] = {}
         self.clock_tasks: dict[int, asyncio.Task] = {}
+        self.voice = self._load_voice()
+
+    @staticmethod
+    def _load_voice() -> ForemanVoice:
+        try:
+            cfg = json.loads((REPO_ROOT / "config.json").read_text()).get("foreman_voice")
+        except Exception:
+            cfg = None
+        return ForemanVoice(cfg)
+
+    async def _voiced(self, event: str, template: str, context: str) -> str:
+        """Ask the Hermes Foreman for a line; fall back to the template. Never blocks
+        the case flow longer than max_wait_sec and never leaks a score."""
+        if not self.voice.enabled:
+            return template
+        try:
+            voiced = await asyncio.wait_for(
+                asyncio.to_thread(self.voice.speak, event, context),
+                timeout=self.voice.max_wait_sec,
+            )
+        except asyncio.TimeoutError:
+            print(f"foreman voice: {event} over max_wait — using template", flush=True)
+            return template
+        except Exception as exc:
+            print(f"foreman voice: {event} error ({exc.__class__.__name__}) — using template", flush=True)
+            return template
+        return voiced or template
 
     def _load_state(self) -> dict:
         if self.state_path.exists():
@@ -126,16 +154,21 @@ class CaseFlow:
         if participant_id is not None:
             await self.transport.add_participant(handle, participant_id)
 
-        await self.transport.post_to_thread(
-            handle, "foreman",
+        open_line = await self._voiced(
+            "case_open",
             f"**Case T{team_number:02d} is open.** {participant_name}, the jury has been summoned. "
             "Reviews and questions land here shortly — when they do, your shared clock starts. "
             "Scores stay sealed throughout.",
+            f"team '{self._label(team_number)}', case T{team_number:02d}, participant {participant_name}, "
+            "thread just opened, jury summoned",
         )
-        await self.transport.post(
-            "foreman", "live_feed",
+        await self.transport.post_to_thread(handle, "foreman", open_line)
+        feed_line = await self._voiced(
+            "live_feed_case",
             f"A new case is called — {self._label(team_number)} steps before the bench. The jury is reading.",
+            f"new case called: {self._label(team_number)}",
         )
+        await self.transport.post("foreman", "live_feed", feed_line)
 
         entry = await self._run_jury(team_number, handle)
         if entry is None:
@@ -200,12 +233,14 @@ class CaseFlow:
         if dropped:
             await self._escalate(f"team {team_number}: dropped judges — {dropped}")
 
-        await self.transport.post_to_thread(
-            handle, "foreman",
+        floor_line = await self._voiced(
+            "floor_yours",
             f"**{self._label(team_number)} — the floor is yours.** The shared clock starts NOW: "
             f"{self.config.qna_minutes} minutes for answers and follow-ups, all in this thread. "
             "When it hits zero the phase freezes.",
+            f"{self._label(team_number)}, questions posted, shared {self.config.qna_minutes}-minute clock starts now",
         )
+        await self.transport.post_to_thread(handle, "foreman", floor_line)
 
     async def _run_qna_clock(self, handle, team_number: int, participant_id) -> None:
         total_sec = self.config.qna_minutes * 60
@@ -231,11 +266,13 @@ class CaseFlow:
         answers_path.parent.mkdir(parents=True, exist_ok=True)
         answers_path.write_text("\n".join(self.answers[team_number]) + "\n")
 
-        await self.transport.post_to_thread(
-            handle, "foreman",
+        time_line = await self._voiced(
+            "time_called",
             f"**Time.** The Q&A phase for {self._label(team_number)} is frozen; answers are logged. "
             "The participant leaves the room — this thread is now the courtroom.",
+            f"{self._label(team_number)}, Q&A clock hit zero, phase frozen, participant leaves, thread becomes courtroom",
         )
+        await self.transport.post_to_thread(handle, "foreman", time_line)
         if participant_id is not None:
             await self.transport.remove_participant(handle, participant_id)
 
@@ -266,15 +303,20 @@ class CaseFlow:
         self.state["active"].remove(team_number)
         self.state["completed"].append(team_number)
         self._save_state()
-        await self.transport.post_to_thread(
-            handle, "foreman", f"Case T{team_number:02d} closed and sealed. The bench moves on."
+        seal_line = await self._voiced(
+            "case_sealed",
+            f"Case T{team_number:02d} closed and sealed. The bench moves on.",
+            f"case T{team_number:02d} ({self._label(team_number)}) closed and sealed",
         )
+        await self.transport.post_to_thread(handle, "foreman", seal_line)
 
     async def _run_deliberation(self, handle, team_number: int) -> None:
-        await self.transport.post_to_thread(
-            handle, "foreman",
+        delib_line = await self._voiced(
+            "deliberation_open",
             "The participant has left. **The court deliberates.** All blind scores are now on the bench.",
+            f"{self._label(team_number)}, participant has left, all blind scores on the bench, panel speaks",
         )
+        await self.transport.post_to_thread(handle, "foreman", delib_line)
         result = await asyncio.to_thread(
             subprocess.run,
             [
