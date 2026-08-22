@@ -79,19 +79,57 @@ class AgentCourt:
 
     # ---------- jurors ----------
     async def juror_turn(self, thread, judge_id: str, agent: str, team_number: int, team_key: str) -> None:
+        text = await self._juror_generate(judge_id, agent, team_number, team_key)
+        if text:
+            await self.t.post_to_thread(thread, judge_id, text)
+
+    async def _juror_generate(self, judge_id: str, agent: str, team_number: int, team_key: str) -> str | None:
         bundle = self._bundle_text(team_number)
-        history = await self._history_text(thread)
+        history = await self._history_text(self.current_thread)
         msg = (
             f"It is YOUR turn to speak in the case thread. You are {agent}, questioning "
             f"{self._label(team_number)}.\n\n--- Evidence bundle ---\n{bundle}\n\n"
             f"--- Thread so far ---\n{history[-3000:]}\n\n"
-            "Post your opening read (1-2 conversational sentences grounded in the bundle) "
-            "followed by your questions (max 2, one idea each). Talk like a human on a big screen. "
-            "No scores. Write ONLY what you post."
+            "Style: SHORT Discord chat, like a person typing. React to their submission in one casual line, then ask ONE simple question. "
+            "2-3 sentences max total unless a question genuinely needs more. No lists, no labels, no essays. No scores. Write ONLY what you post."
         )
         reply = await asyncio.to_thread(self.brains[agent].say, team_key, msg)
-        if reply:
-            await self.t.post_to_thread(thread, judge_id, reply)
+        return reply or None
+
+    async def _settle(self, team_number: int, settle_secs: int = 25) -> None:
+        """Wait for message bursts to finish: teams often answer Q1 and Q2 in separate messages."""
+        is_dry = self.config.qna_minutes < 1
+        quiet = 4 if is_dry else settle_secs
+        last = len(self.answers.get(team_number, []))
+        while True:
+            await asyncio.sleep(3 if not is_dry else 1)
+            cur = len(self.answers.get(team_number, []))
+            if cur != last:
+                last = cur
+                continue
+            # no new messages for `quiet` seconds -> settled
+            await asyncio.sleep(quiet - (3 if not is_dry else 1))
+            if len(self.answers.get(team_number, [])) == last:
+                return
+
+    async def juror_followup_check(self, thread, judge_id: str, agent: str, team_number: int, team_key: str, display: str) -> bool:
+        """Ask the CURRENT JUDGE whether their questions were covered. Judge either presses
+        ONE follow-up (posted as them) or yields. Returns True if they posted a follow-up."""
+        history = await self._history_text(thread)
+        msg = (
+            f"The team just answered your questions ({display} speaking). Review the thread below.\n\n"
+            f"--- Thread ---\n{history[-2500:]}\n\n"
+            "Decide:\n"
+            "- If something important went unanswered or was vague, ask ONE short casual follow-up (1-2 sentences, human tone).\n"
+            "- If you're satisfied, reply with exactly: NO_FOLLOW_UP\n"
+            "No scores. Write ONLY your post."
+        )
+        reply = await asyncio.to_thread(self.brains[agent].say, team_key, msg)
+        reply = (reply or "").strip()
+        if not reply or "NO_FOLLOW_UP" in reply.upper():
+            return False
+        await self.t.post_to_thread(thread, judge_id, reply)
+        return True
 
     async def juror_reply(self, thread, judge_id: str, agent: str, team_number: int, team_key: str, team_question: str) -> None:
         msg = (
@@ -152,30 +190,48 @@ class AgentCourt:
         # 2. Blind scoring happens deterministically in background (sheet + verdict need it)
         entry = await self._score_background(team_number)
 
-        # 3. Sequential juror turns
+        # 3. Sequential juror turns (settle window + judge-driven follow-ups + parallel handoff)
+        import time as _time
+        DISPLAY = {"juror_one": "The Builder", "juror_two": "The Skeptic", "juror_three": "The Futurist"}
+        self.current_thread = thread
+        next_gen = None
         for i, (judge_id, agent) in enumerate(JUROR_AGENTS):
-            display = {"juror_one": "The Builder", "juror_two": "The Skeptic", "juror_three": "The Futurist"}[judge_id]
-            await self.juror_turn(thread, judge_id, agent, team_number, team_key)
+            display = DISPLAY[judge_id]
+            if i == 0:
+                await self.juror_turn(thread, judge_id, agent, team_number, team_key)
+            elif next_gen is not None:
+                text = await next_gen
+                if text:
+                    await self.t.post_to_thread(thread, judge_id, text)
+                next_gen = None
+            else:
+                await self.juror_turn(thread, judge_id, agent, team_number, team_key)
+
             replied = await self.wait_for_team(
                 thread, team_number, display,
-                next_judge_display=(JUROR_AGENTS[i + 1][1] if i + 1 < len(JUROR_AGENTS) else None),
+                next_judge_display=(DISPLAY[JUROR_AGENTS[i + 1][0]] if i + 1 < len(JUROR_AGENTS) else None),
             )
-            if replied:
-                # If the team's last message directly asks this judge, let the judge answer
-                msgs = self.answers.get(team_number, [])
-                last = msgs[-1] if msgs else ""
-                low = last.lower()
-                names = [display.lower(), agent]
-                if any(n in low for n in names) and ("?" in last or "what " in low or "how " in low):
-                    q = last.split(":", 1)[-1].strip()
-                    await self.juror_reply(thread, judge_id, agent, team_number, team_key, q)
-                    await self.wait_for_team(thread, team_number, display, None)
+            # Settle burst answers (multi-message replies), then let THE JUDGE decide follow-ups (max 2 rounds)
+            for _ in range(2):
+                if not replied:
+                    break
+                await self._settle(team_number)
+                has_fu = await self.juror_followup_check(thread, judge_id, agent, team_number, team_key, display)
+                if not has_fu:
+                    break
+                replied = await self.wait_for_team(thread, team_number, display, None)
+
             if i + 1 < len(JUROR_AGENTS):
-                nxt = JUROR_AGENTS[i + 1][1].capitalize()
-                await self.foreman_say(
+                nxt_jid, nxt_agent = JUROR_AGENTS[i + 1]
+                nxt_display = DISPLAY[nxt_jid]
+                # Parallelize: Foreman handoff and next judge's question generation overlap (~halves the gap)
+                handoff_t = asyncio.create_task(self.foreman_say(
                     thread, team_key,
-                    f"The team has answered {display}. Write ONE short warm handoff line thanking the team and passing the floor to {nxt}. Vary your wording — never repeat a previous handoff verbatim.",
-                )
+                    f"The team has finished answering {display}. Write ONE short warm handoff line thanking the team and inviting {nxt_display} to take the floor. Vary your wording — never repeat a previous handoff verbatim.",
+                ))
+                next_gen_task = asyncio.create_task(self._juror_generate(nxt_jid, nxt_agent, team_number, team_key))
+                await handoff_t
+                next_gen = next_gen_task
 
         # 4. Summary + time
         await self.foreman_say(
