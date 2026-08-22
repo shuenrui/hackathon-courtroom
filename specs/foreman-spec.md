@@ -13,8 +13,8 @@ writer of scores.
 |---|------------|-----------|
 | 1 | Hear team pings in #submissions ("Team N, done submitting @Foreman") | watches #submissions; one thread per team number |
 | 2 | Summon | triggers `judging.service summon --team N` |
-| 3 | Thread lifecycle | create `case-TNN` in #CASES → pull in participant + 3 judge bots; participant kicked at the 7-min Q&A mark → same thread becomes the courtroom |
-| 4 | 7-min shared Q&A clock | starts at the first posted question; countdowns; frozen at zero, unconditionally |
+| 3 | Thread lifecycle | create `case-TNN` in #CASES → pull in participant + 3 judge bots; participant kicked at the 10-minute Q&A mark → same thread becomes the courtroom |
+| 4 | 10-minute shared Q&A clock | starts at the first posted question; countdowns; ends after all three judges finish or freezes at zero, whichever comes first |
 | 5 | Post jury output | judges' reviews + questions from `judging.service dispatch` into the case thread |
 | 6 | Deliberation | open verdict, fixed order One → Two → Three, evidence-cited revisions only; light ~2 min / contested ~4 min; close with verdict line |
 | 7 | Mirror | score-stripped case mirror to #live-feed (artifacts from the service, never raw numbers) |

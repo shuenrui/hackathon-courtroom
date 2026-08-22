@@ -68,7 +68,7 @@ class DiscordConfig:
             channels=channels,
             tokens=tokens,
             intake=cfg.get("intake", "sheet"),
-            qna_minutes=cfg.get("qna_minutes", 7),
+            qna_minutes=cfg.get("qna_minutes", 10),
             heartbeat_minutes=cfg.get("heartbeat_minutes", 15),
             countdown_marks_sec=cfg.get("countdown_marks_sec", [180, 60, 10]),
         )

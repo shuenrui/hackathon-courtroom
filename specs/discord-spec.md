@@ -26,13 +26,13 @@ pending; set server nicknames to match the roles once assigned.
 
 submissions · cases (hidden) · live_feed · announcements · ops · bot_health
 
-## Case flow (as implemented in flows.py)
+## Case flow (as implemented in `judging.agents.runner` and `judging.agents.court`)
 
 1. Ping in #submissions ("Team N done submitting @Foreman") → single-submission lock check
 2. Private thread `case-TNN` created in #CASES; participant + judge bots pulled in
 3. Judging service summoned (`summon --team N`); Foreman posts "panel is reading"
-4. Each judge bot posts its opening read + questions (score-scrubbed via `strip_scores`)
-5. Shared Q&A clock starts (7 min); countdown marks at 3:00 / 1:00 / 0:10; answers in the
+4. Each living OpenCode judge posts one conversational question in Builder → Skeptic → Futurist order
+5. Shared Q&A clock starts with the Builder's first question (10 min); countdown marks at 3:00 / 1:00 / 0:10; answers in the
    thread are captured to `out/answers/team_NN.txt`
 6. At zero: answers logged, participant removed, thread becomes the courtroom
 7. Verdict line posted in the courtroom (scores allowed — judges only); score-stripped

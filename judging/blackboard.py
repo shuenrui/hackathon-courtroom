@@ -91,6 +91,7 @@ class SheetsBlackboard(Blackboard):
     # carry suffixes ("Problem Statement (Max 150 words)", "Demo Video (Youtube/...)"),
     # so we match on the distinctive core rather than exact titles. More specific first.
     FIELD_RULES = [
+        ("video transcript", "video_transcript"),
         ("problem statement", "problem_statement"),
         ("demo video", "demo_video_url"),
         ("project url", "project_url"),

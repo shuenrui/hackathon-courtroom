@@ -45,11 +45,19 @@ def sanitize_submission(submission: dict, limits: dict) -> tuple[dict, list[str]
     solution, s_flags = sanitize_text(
         submission.get("solution", ""), limits.get("solution_max_chars", 4000)
     )
+    raw_transcript = submission.get("video_transcript", "")
+    if isinstance(raw_transcript, str) and raw_transcript.strip().startswith("(transcribe failed:"):
+        raw_transcript = ""
+    transcript, t_flags = sanitize_text(
+        raw_transcript, limits.get("video_transcript_max_chars", 8000)
+    )
 
     all_flags.extend(f"problem:{f}" for f in p_flags)
     all_flags.extend(f"solution:{f}" for f in s_flags)
+    all_flags.extend(f"video_transcript:{f}" for f in t_flags)
 
     sanitized = dict(submission)
     sanitized["problem_statement"] = problem
     sanitized["solution"] = solution
+    sanitized["video_transcript"] = transcript
     return sanitized, all_flags

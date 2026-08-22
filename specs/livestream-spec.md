@@ -25,7 +25,7 @@ playback live. (Decided 2026-08-18.)
 - **No scores on stream — ever.** Scores/rankings are private. Each segment ends after the
   Q&A on a "the jury deliberates…" button; the only public reveal is the 16:45 top-six
   (names only). This keeps the announcement surprising.
-- **Replay compresses time.** The 7-min live Q&A clock includes participant thinking/typing
+- **Replay compresses time.** The 10-minute live Q&A clock includes participant thinking/typing
   time. The rendered segment voices only the actual messages (~3 min), so dead air is stripped.
 - **All dialogue is voiced (TTS).** Not plain text on screen.
 

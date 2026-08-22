@@ -43,16 +43,42 @@ async def run(args) -> int:
         if name:
             by_name[name.lower()] = num
 
-    def resolve(text: str):
-        m = re.search(r"\bteam\s*#?\s*(\d+)\b", text, re.I)
-        if m and int(m.group(1)) in by_number:
-            return int(m.group(1))
-        low = text.lower()
-        best, bnum = "", None
-        for name, num in by_name.items():
-            if name in low and len(name) > len(best):
-                best, bnum = name, num
-        return bnum
+    def reload():
+        """Re-read the sheet so post-startup submissions resolve (non-destructive)."""
+        nonlocal by_name, by_number
+        try:
+            rows = board.load_intake()
+            new_by_name, new_by_number = {}, {}
+            for row in board.dedupe_first(rows):
+                num, name = row.get("team_number"), str(row.get("team_name") or "").strip()
+                if num is None:
+                    continue
+                new_by_number[num] = name
+                if name:
+                    new_by_name[name.lower()] = num
+            by_name, by_number = new_by_name, new_by_number
+        except Exception as exc:
+            print(f"resolver refresh failed: {exc.__class__.__name__}", flush=True)
+
+    def resolve(text: str) -> int | None:
+        def _cached(t: str) -> int | None:
+            m = re.search(r"\bteam\s*#?\s*(\d+)\b", t, re.I)
+            if m and int(m.group(1)) in by_number:
+                return int(m.group(1))
+            low = t.lower()
+            best, bnum = "", None
+            for name, num in by_name.items():
+                if name in low and len(name) > len(best):
+                    best, bnum = name, num
+            return bnum
+
+        num = _cached(text)
+        if num is not None:
+            return num
+        # Miss -> maybe the team submitted after startup; refresh from the sheet and retry once.
+        reload()
+        print(f"[submissions] resolver refreshed: {len(by_number)} teams", flush=True)
+        return _cached(text)
 
     print(f"team resolver loaded: {len(by_number)} teams from intake '{config.intake}': {by_number}", flush=True)
     transport = DiscordTransport(config)
@@ -62,6 +88,7 @@ async def run(args) -> int:
     submissions_id = int(config.channels["submissions"])
     cases_id = int(config.channels["cases"])
     active: set[int] = set()
+    case_lock = asyncio.Lock()
 
     @foreman.event
     async def on_message(message):
@@ -73,11 +100,11 @@ async def run(args) -> int:
             m = re.match(r"case-T(\d+)", ch.name)
             if m:
                 team = int(m.group(1))
-                court.answers.setdefault(team, []).append(f"{message.author.display_name}: {message.content}")
+                court.record_answer(team, message.author.display_name, message.content)
             return
         # Ping in #submissions starts a case
         if message.channel.id == submissions_id and foreman.user in message.mentions:
-            team = resolve(message.content)
+            team = await asyncio.to_thread(resolve, message.content)
             if team is None:
                 await message.channel.send("I could not match a team — include your team name (as submitted) or `Team 12`, and mention me.")
                 return
@@ -85,10 +112,13 @@ async def run(args) -> int:
                 await message.channel.send(f"{by_number.get(team, f'Team {team}')} — your case is already in flight.")
                 return
             active.add(team)
-            print(f"[submissions] {message.author}: team={team} — opening case", flush=True)
-            thread = await transport.create_case_thread(team)
-            await court.run_case(thread, team, str(message.author), message.author.id)
-            active.discard(team)
+            try:
+                async with case_lock:
+                    print(f"[submissions] {message.author}: team={team} — opening case", flush=True)
+                    thread = await transport.create_case_thread(team)
+                    await court.run_case(thread, team, str(message.author), message.author.id)
+            finally:
+                active.discard(team)
 
     async def heartbeat():
         while True:

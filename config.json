@@ -25,6 +25,7 @@
   "limits": {
     "problem_max_chars": 2400,
     "solution_max_chars": 4000,
+    "video_transcript_max_chars": 8000,
     "evidence_note_max_chars": 400
   },
   "paths": {
@@ -63,7 +64,7 @@
       "juror_three": "DISCORD_TOKEN_JUROR_THREE"
     },
     "intake": "sheet",
-    "qna_minutes": 7,
+    "qna_minutes": 10,
     "heartbeat_minutes": 15,
     "countdown_marks_sec": [
       180,

@@ -96,6 +96,7 @@ def judge_submission(
         "project_url": submission.get("project_url", ""),
         "github_repo": submission.get("github_repo", ""),
         "demo_video_url": submission.get("demo_video_url", ""),
+        "video_transcript": sanitized.get("video_transcript", ""),
         "url_smoke": {
             "reachable": url_evidence.get("reachable"),
             "status_code": url_evidence.get("status_code"),

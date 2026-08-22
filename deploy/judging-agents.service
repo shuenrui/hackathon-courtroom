@@ -9,6 +9,7 @@ User=oem
 WorkingDirectory=/home/oem/hackathon-judging
 Environment=PYTHONUNBUFFERED=1
 Environment=PATH=/home/oem/.local/bin:/home/oem/.opencode/bin:/home/oem/.hermes/hermes-agent/venv/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/home/oem/hackathon-judging/.env
 ExecStart=/home/oem/hackathon-judging/.venv/bin/python -m judging.agents.runner
 Restart=always
 RestartSec=5

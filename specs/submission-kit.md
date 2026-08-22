@@ -18,7 +18,7 @@ Via: the official Google Form (link published at 14:00). Your agent can fill it 
 2. Deploy the app somewhere public. Nothing to deploy means the completeness criterion (20 pts) collapses.
 3. Smoke-test your own URL before submitting: does it load? Do the main buttons work? The jury runs the same check automatically.
 4. Fill the Form (fields + entry IDs below), you approve, it submits.
-5. Watch your team channel — jurors may ask up to three clarification questions, each with a 10-minute response window, until 16:15. Answer fast; unanswered questions are dropped.
+5. Watch your team channel — the three jurors share one 10-minute courtroom window that starts with the Builder's first question. Answer fast; unanswered questions are dropped when time is called.
 
 ## Demo video — recorded by a human
 

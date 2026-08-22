@@ -88,6 +88,7 @@ class CaseFlow:
         self.state = self._load_state()
         self.answers: dict[int, list[str]] = {}
         self.clock_tasks: dict[int, asyncio.Task] = {}
+        self.deadlines: dict[int, float] = {}
         self.voice = self._load_voice()
 
     @staticmethod
@@ -156,13 +157,13 @@ class CaseFlow:
 
         open_line = await self._voiced(
             "case_open",
-            f"Welcome to the bench, {self._label(team_number)} — {participant_name}! You have 7 minutes. "
+            f"Welcome to the bench, {self._label(team_number)} — {participant_name}! You have 10 minutes. "
             "I'm The Foreman, with me are three AI judges: The Builder (checks if your demo actually works), "
             "The Skeptic (checks if your problem is real and viable), and The Futurist (checks if your agent really improvises). "
             "Rules: Reply in this thread to the bot that asked you, answer as much as you can, it's okay to say 'not built yet.' "
-            "The shared clock starts at the first question and freezes at 7:00. Now, The Builder will start.",
+            "The shared clock starts at the first question and freezes at 10:00. Now, The Builder will start.",
             f"team '{self._label(team_number)}', case T{team_number:02d}, participant {participant_name}, thread just opened, jury summoned, "
-            "7-minute shared clock, judges: Builder (completeness), Skeptic (problem fit/viability), Futurist (agent mastery/novelty), "
+            "10-minute shared clock, judges: Builder (completeness), Skeptic (problem fit/viability), Futurist (agent mastery/novelty), "
             "rules: reply in thread to the bot that asked, answer as much as you can, clock starts at first question",
         )
         await self.transport.post_to_thread(handle, "foreman", open_line)
@@ -222,6 +223,9 @@ class CaseFlow:
         # team answers, Foreman checks for follow-up before moving to next judge, then summary.
         juror_order = ["juror_one", "juror_two", "juror_three"]
         for idx, judge in enumerate(juror_order):
+            deadline = self.deadlines.get(team_number)
+            if deadline is not None and asyncio.get_running_loop().time() >= deadline:
+                break
             # For judges after the first, wait for team's reply to previous judge before introducing next judge
             # The "Thanks, Team. Next judge is ..." handoff comes *after* the team has replied to the previous judge
             if idx > 0:
@@ -231,7 +235,7 @@ class CaseFlow:
             doc = next((d for d in entry.get("blind_scores", []) if d.get("judge") == judge), None)
             if doc is None or judge not in JUROR_DISPLAY:
                 continue
-            # For the first judge, post the 7-min intro has already been done in handle_ping; now post this judge's questions
+            # For the first judge, the 10-minute intro has already been posted; now post this judge's questions.
             # For subsequent judges, the "Thanks" handoff will be posted at the *end* of previous judge's wait (see below)
             review = strip_scores((doc.get("review") or "").strip())
             if review:
@@ -242,6 +246,8 @@ class CaseFlow:
                 await self.transport.post_to_thread(
                     handle, judge, f"**Questions for {self._label(team_number)} from {JUROR_DISPLAY[judge]}:**\n{numbered}"
                 )
+                if team_number not in self.deadlines:
+                    self.deadlines[team_number] = asyncio.get_running_loop().time() + self.config.qna_minutes * 60
             # Foreman hands the floor for this judge's questions (only for first judge, subsequent handoffs are after previous answer)
             if idx == 0:
                 floor_intro = await self._voiced(
@@ -267,6 +273,9 @@ class CaseFlow:
                 # Keep a snapshot of answers to detect new ones that mention this judge
                 last_seen = before_len
                 while elapsed < wait_before_next:
+                    deadline = self.deadlines.get(team_number)
+                    if deadline is not None and asyncio.get_running_loop().time() >= deadline:
+                        break
                     await asyncio.sleep(1)
                     elapsed += 1
                     cur_len = len(self.answers.get(team_number, []))
@@ -301,6 +310,9 @@ class CaseFlow:
                         )
                         await self.transport.post_to_thread(handle, "foreman", nudge)
                         reminder_sent = True
+            deadline = self.deadlines.get(team_number)
+            if deadline is not None and asyncio.get_running_loop().time() >= deadline:
+                break
             # Check if this judge has a follow-up before moving on
             follow_line = await self._voiced(
                 "follow_up_check",
@@ -325,7 +337,9 @@ class CaseFlow:
         if dropped:
             await self._escalate(f"team {team_number}: dropped judges — {dropped}")
 
-        await self._post_jury_summary(handle, team_number)
+        deadline = self.deadlines.get(team_number)
+        if deadline is None or asyncio.get_running_loop().time() < deadline:
+            await self._post_jury_summary(handle, team_number)
 
     async def _judge_followup(self, judge: str, team_number: int, team_question: str) -> str | None:
         """Let a specific judge reply conversationally to a team's direct follow-up question. Uses Qwen if live, mock template if --mock or on error."""
@@ -371,14 +385,14 @@ class CaseFlow:
     async def _run_qna_clock(self, handle, team_number: int, participant_id) -> None:
         total_sec = self.config.qna_minutes * 60
         marks = sorted(set(self.config.countdown_marks_sec), reverse=True)
-        elapsed = 0
-        while elapsed < total_sec:
-            step = 1
-            next_mark = next((m for m in marks if total_sec - elapsed > m >= total_sec - elapsed - step), None)
-            await asyncio.sleep(step)
-            elapsed += step
-            remaining = total_sec - elapsed
-            if remaining in marks:
+        loop = asyncio.get_running_loop()
+        deadline = self.deadlines.get(team_number, loop.time() + total_sec)
+        announced: set[int] = set()
+        while loop.time() < deadline:
+            await asyncio.sleep(min(1, deadline - loop.time()))
+            remaining = max(0, int(round(deadline - loop.time())))
+            if remaining in marks and remaining not in announced:
+                announced.add(remaining)
                 mm, ss = divmod(int(remaining), 60)
                 label = f"{mm}:{ss:02d}" if mm else f"{ss} seconds"
                 await self.transport.post_to_thread(
@@ -401,6 +415,7 @@ class CaseFlow:
         await self.transport.post_to_thread(handle, "foreman", time_line)
         if participant_id is not None:
             await self.transport.remove_participant(handle, participant_id)
+        self.deadlines.pop(team_number, None)
 
     async def _close_case(self, handle, team_number: int) -> None:
         await self._run_deliberation(handle, team_number)

@@ -1,0 +1,18 @@
+[Unit]
+Description=Hackathon YouTube transcript watcher (fills video_transcript column)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=oem
+WorkingDirectory=/home/oem/hackathon-judging
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/home/oem/hackathon-judging/.venv/bin:/home/oem/.local/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/home/oem/hackathon-judging/.env
+ExecStart=/home/oem/hackathon-judging/.venv/bin/python -m judging.transcribe_watcher --loop
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

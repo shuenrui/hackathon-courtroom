@@ -1,5 +1,5 @@
-"""Living-agent brain: each judge is an opencode CLI instance with its own persona,
-session memory per case, and tool access (it can curl URLs, read the repo, etc.)."""
+"""Living-agent brain: each judge is an opencode CLI instance with its own persona
+and persistent session memory per case. External tools are denied for participant safety."""
 import json
 import re
 import subprocess
