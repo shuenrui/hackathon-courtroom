@@ -72,6 +72,14 @@ class DryRunTransport:
             f"(simulated answer 2) The staged part is only the login; everything after runs unscripted.",
         ]
 
+    async def fetch_thread_history(self, thread, limit: int = 30) -> list[dict]:
+        """Dry-run: simulated thread so agent brains have context without Discord."""
+        return [
+            {"author": "Foreman", "text": "Case opened. The Builder will begin."},
+            {"author": "The Builder", "text": "Opening read posted; questions on the bench."},
+            {"author": DryRunTransport.SIM_PARTICIPANT, "text": "(simulated) We validate at the agent boundary and bounce bad fields to the operator queue."},
+        ]
+
 
 class DiscordTransport:
     """Live transport: four discord.py clients (Foreman + 3 judges) in one process."""
@@ -197,3 +205,16 @@ class DiscordTransport:
         live_thread = await client.fetch_channel(thread.id)
         for part in chunk_text(text):
             await live_thread.send(part)
+
+    async def fetch_thread_history(self, thread, limit: int = 30) -> list[dict]:
+        """Recent thread messages oldest->newest: [{author, text}] for agent context."""
+        client = self.foreman
+        live = await client.fetch_channel(thread.id)
+        msgs = []
+        async for m in live.history(limit=limit, oldest_first=False):
+            if m.author.bot and m.author.id == client.user.id:
+                name = "Foreman"
+            else:
+                name = m.author.display_name
+            msgs.append({"author": name, "text": m.content or ""})
+        return list(reversed(msgs))

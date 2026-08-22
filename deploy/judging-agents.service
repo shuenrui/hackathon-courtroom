@@ -1,0 +1,17 @@
+[Unit]
+Description=Hackathon judging — living agent courtroom (opencode Foreman + jury)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=oem
+WorkingDirectory=/home/oem/hackathon-judging
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/home/oem/.local/bin:/home/oem/.opencode/bin:/home/oem/.hermes/hermes-agent/venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/oem/hackathon-judging/.venv/bin/python -m judging.agents.runner
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

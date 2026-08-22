@@ -7,3 +7,8 @@ knowledge/
 out/
 service-account*.json
 hackathon-migration.tar.gz
+.venv/
+
+# opencode: keep agent personas, ignore local state
+.opencode/*
+!.opencode/agent/

@@ -72,7 +72,7 @@
     ]
   },
   "foreman_voice": {
-    "enabled": false,
+    "enabled": true,
     "hermes_home": "~/.hermes-foreman",
     "binary": "hermes",
     "timeout_sec": 40,
