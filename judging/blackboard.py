@@ -204,7 +204,7 @@ class SheetsBlackboard(Blackboard):
 
     def write_judging(self, results: list[dict], path) -> None:
         super().write_judging(results, path)
-        self._sync_tab(self.TAB_JUDGING, [self._judging_row(e) for e in results])
+        self._upsert_tab(self.TAB_JUDGING, [self._judging_row(e) for e in results], "team_number")
 
     def write_shortlist(self, shortlist: dict, path) -> None:
         super().write_shortlist(shortlist, path)
@@ -286,3 +286,48 @@ class SheetsBlackboard(Blackboard):
             worksheet.update(values=values)
         except Exception as exc:
             print(f"warning: sheet tab '{tab_name}' sync failed ({exc.__class__.__name__}); local outputs unaffected", flush=True)
+
+    def _upsert_tab(self, tab_name: str, rows: list[dict], key: str) -> None:
+        """Merge service rows by key so a single-team run cannot erase prior teams."""
+        if not rows:
+            return
+        try:
+            try:
+                worksheet = self._sheet.worksheet(tab_name)
+                existing = worksheet.get_all_records()
+            except Exception:
+                worksheet = self._sheet.add_worksheet(title=tab_name, rows=len(rows) + 1, cols=len(rows[0]))
+                existing = []
+
+            merged: dict[str, dict] = {}
+            order: list[str] = []
+            for row in existing:
+                row_key = str(row.get(key, "")).strip()
+                if not row_key or row_key in merged:
+                    continue
+                order.append(row_key)
+                merged[row_key] = dict(row)
+            for row in rows:
+                row_key = str(row.get(key, "")).strip()
+                if not row_key:
+                    continue
+                if row_key not in merged:
+                    order.append(row_key)
+                    merged[row_key] = {}
+                manual_note = merged[row_key].get("deliberation_note", "")
+                merged[row_key].update(row)
+                if manual_note and not merged[row_key].get("deliberation_note"):
+                    merged[row_key]["deliberation_note"] = manual_note
+
+            def sort_key(value: str):
+                return (0, int(value)) if value.isdigit() else (1, value)
+
+            ordered_rows = [merged[row_key] for row_key in sorted(order, key=sort_key)]
+            headers = list(rows[0].keys())
+            for row in ordered_rows:
+                headers.extend(header for header in row if header not in headers)
+            values = [headers] + [[row.get(header, "") for header in headers] for row in ordered_rows]
+            worksheet.clear()
+            worksheet.update(values=values)
+        except Exception as exc:
+            print(f"warning: sheet tab '{tab_name}' upsert failed ({exc.__class__.__name__}); local outputs unaffected", flush=True)

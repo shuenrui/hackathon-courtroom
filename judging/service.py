@@ -115,6 +115,13 @@ def judge_submission(
     }
 
 
+def merge_scored_results(previous: dict[str, dict], updates: list[dict]) -> list[dict]:
+    """Replace updated teams while preserving every previously judged team."""
+    merged = dict(previous)
+    merged.update({str(entry["team_number"]): entry for entry in updates})
+    return list(merged.values())
+
+
 def run_pipeline(args) -> int:
     config = load_config(args.config)
     rubric, juror_prompts, _foreman = load_prompts(config)
@@ -141,17 +148,18 @@ def run_pipeline(args) -> int:
     if ignored_resubmissions:
         detail = ", ".join(f"team {k} (x{v + 1} entries)" for k, v in sorted(ignored_resubmissions.items()))
         print(f"note: later submissions ignored — single submission locked at first entry: {detail}", flush=True)
+    selected_intake = intake
     if args.team is not None:
-        intake = [row for row in intake if row.get("team_number") == args.team]
-        if not intake:
+        selected_intake = [row for row in intake if row.get("team_number") == args.team]
+        if not selected_intake:
             print(f"team {args.team} not found in intake", file=sys.stderr)
             return 2
 
-    results = []
-    for submission in intake:
+    updated_results = []
+    for submission in selected_intake:
         team_key = str(submission.get("team_number"))
         if team_key in previous and not state.needs_scoring(submission):
-            results.append(previous[team_key])
+            updated_results.append(previous[team_key])
             print(f"team {submission.get('team_number'):>3} | unchanged, reusing prior scores", flush=True)
             continue
 
@@ -166,13 +174,18 @@ def run_pipeline(args) -> int:
             lessons=lessons,
         )
         state.mark_scored(submission)
-        results.append(entry)
+        updated_results.append(entry)
         print(
             f"team {entry['team_number']:>3} | valid {entry['valid_scores']}/3 | "
             f"total {entry['averages'].get('total', '-')} | spread {entry['spread']} | "
             f"{entry['elapsed_sec']}s",
             flush=True,
         )
+
+    if args.team is not None:
+        results = merge_scored_results(previous, updated_results)
+    else:
+        results = updated_results
 
     ranked = rank_teams(results)
     short_cfg = config["shortlist"]

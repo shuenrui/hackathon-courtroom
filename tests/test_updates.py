@@ -6,9 +6,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from judging.agents.court import AgentCourt
+from judging.blackboard import SheetsBlackboard
 from judging.discordx.config import DiscordConfig
 from judging.evidence import build_evidence_bundle, render_bundle_for_prompt
 from judging.sanitize import sanitize_submission
+from judging.service import merge_scored_results
 from judging.transcribe import validate_youtube_url
 
 
@@ -93,6 +95,59 @@ class DurationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(court.t.removed)
         self.assertTrue(any("reached zero" in instruction for instruction in spoken))
         self.assertNotIn(1, court.deadlines)
+
+
+class SpreadsheetTests(unittest.TestCase):
+    def test_single_team_result_preserves_previous_teams(self):
+        previous = {
+            "1": {"team_number": 1, "averages": {"total": 20}},
+            "2": {"team_number": 2, "averages": {"total": 30}},
+        }
+        merged = merge_scored_results(previous, [{"team_number": 2, "averages": {"total": 35}}])
+        by_team = {entry["team_number"]: entry for entry in merged}
+        self.assertEqual(set(by_team), {1, 2})
+        self.assertEqual(by_team[1]["averages"]["total"], 20)
+        self.assertEqual(by_team[2]["averages"]["total"], 35)
+
+    def test_judging_sheet_upsert_keeps_existing_rows_and_manual_note(self):
+        class Worksheet:
+            def __init__(self):
+                self.values = None
+
+            def get_all_records(self):
+                return [
+                    {"team_number": 1, "team_name": "Earlier", "avg_total": 20, "deliberation_note": "keep"},
+                    {"team_number": 2, "team_name": "Current", "avg_total": 30, "deliberation_note": ""},
+                ]
+
+            def clear(self):
+                pass
+
+            def update(self, values):
+                self.values = values
+
+        class Sheet:
+            def __init__(self, worksheet):
+                self._worksheet = worksheet
+
+            def worksheet(self, _name):
+                return self._worksheet
+
+        worksheet = Worksheet()
+        board = object.__new__(SheetsBlackboard)
+        board._sheet = Sheet(worksheet)
+        board._upsert_tab(
+            "Judging Sheet",
+            [{"team_number": 2, "team_name": "Current", "avg_total": 35, "deliberation_note": ""}],
+            "team_number",
+        )
+
+        headers, *values = worksheet.values
+        rows = [dict(zip(headers, row)) for row in values]
+        by_team = {int(row["team_number"]): row for row in rows}
+        self.assertEqual(set(by_team), {1, 2})
+        self.assertEqual(by_team[1]["deliberation_note"], "keep")
+        self.assertEqual(by_team[2]["avg_total"], 35)
 
 
 class TranscriptTests(unittest.TestCase):
