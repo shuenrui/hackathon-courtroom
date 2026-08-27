@@ -77,6 +77,7 @@ judging/discordx/       Discord transport: 4 bots, case threads, Q&A clock, verd
 prompts/                sealed persona prompts: rubric + 3 jurors + Foreman
 schemas/                JSON schemas the jurors must satisfy (blind score, reflection)
 specs/                  form/sheet/discord/livestream specs + event runbook
+docs/                   GETTING_STARTED (full wiring) · VOICE_SETUP (STT in, TTS out)
 
 broadcast/              THE FRONTEND — the broadcast website
   index.html            single-screen chat-replay UI (Swiss-poster design)
@@ -119,7 +120,7 @@ python3 -m http.server 8321 --directory broadcast
 
 ## Running it for real
 
-The full wiring guide — Discord bots, jury model, ElevenLabs voices, Google Sheets intake, hosting, event-day ops — lives in **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)**.
+The full wiring guide — Discord bots, jury model, ElevenLabs voices, Google Sheets intake, hosting, event-day ops — lives in **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)**. Voice deserves its own page: **[docs/VOICE_SETUP.md](docs/VOICE_SETUP.md)** covers the STT side (local Whisper — how the jury hears the demos) and the TTS side (casting, models, budget, swaps — how the court speaks).
 
 Event-day startup on the machine running the pipeline:
 

@@ -85,7 +85,7 @@ The jurors can't watch — so the system gives them eyes and ears instead:
 - **Eyes**: a headless-Chromium browse tool renders the team's live URL (JS SPAs included) and reports what's actually on the page, so "the demo works" is checked, not taken on faith.
 - **Ears**: `judging/transcribe.py` transcribes the team's demo video **locally** — yt-dlp pulls the audio (HTTPS YouTube only, ≤5 min, ≤100MB), a `faster-whisper` tiny model (CPU, int8) transcribes it on-device, and the text lands in the form's *Video Transcript* column → the jurors' evidence bundle. No audio ever leaves the machine; there is no cloud speech API in this pipeline.
 
-`judging/transcribe_watcher.py` runs this as a daemon: it watches the intake for responses with a blank transcript and fills them from the demo video. Needs `ffmpeg` on the box. Deployed as a service on the event machine (`deploy/transcribe-watcher.service`).
+`judging/transcribe_watcher.py` runs this as a daemon: it watches the intake for responses with a blank transcript and fills them from the demo video. Needs `ffmpeg` on the box. Deployed as a service on the event machine (`deploy/transcribe-watcher.service`). Full detail in [VOICE_SETUP.md](VOICE_SETUP.md), Part 1.
 
 ---
 
@@ -117,15 +117,9 @@ This is what makes the broadcast feel like a show. Every speaker gets a distinct
 }
 ```
 
-How to choose:
+The short version: cast voices like characters (audition 3–4 candidates per role with one signature line), use `eleven_v3` for the show, budget ~10k chars per case × 1.5 for re-voices, and keep the free edge-tts fallback armed so a case is never silent.
 
-- **Browse the Voice Library** (10k+ community voices, filterable by accent/gender/style) at elevenlabs.io — API access is included with paid tiers. Audition candidates by synthesizing one signature line per role; pick for *character*, not just quality.
-- **Models**: `eleven_v3` = most expressive (character dialogue); `eleven_multilingual_v2` = most stable long-form; `eleven_flash_v2_5` = fast + 50% cheaper for bulk.
-- **Per-voice `speed`**: post-synthesis time-stretch (ffmpeg `atempo`) — faster without pitch shift. Our Foreman ran at 1.5 because gravitas talks slow.
-- **Budget**: a judged case ≈ 5–10k characters. A Creator month covers a full event with room for rehearsals.
-- **Fallback**: `scripts/edge_synth.py` uses Microsoft edge-tts — free, unlimited, lower quality. The pipeline falls back to it automatically for any line ElevenLabs misses.
-
-The synthesis script caches every clip (`--force` to re-voice, `--speaker foreman` to re-voice one role only — a voice swap costs only that role's lines).
+The full treatment — casting workflow, voice sources, model trade-offs, budget math, per-voice speed, mid-event voice swaps, and the STT side (how the jury hears the demos) — lives in **[docs/VOICE_SETUP.md](VOICE_SETUP.md)**.
 
 ---
 
