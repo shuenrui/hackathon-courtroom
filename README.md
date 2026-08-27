@@ -28,7 +28,46 @@ Static site (nginx on ifhost VM, or any static host)
                                with typing indicators, demo videos, sealed verdict card
 ```
 
-## Repository map
+## The user flow — three experiences, one system
+
+**The team.** You finish building and submit the Google Form — problem, solution, live URL, demo video. Your captain then pings the Foreman in `#submissions`: *"done submitting, team X"*. Within seconds a private thread `case-T##` appears under `#cases` with your team and the three jurors. The Foreman opens the bench, a 7-minute shared clock starts with the first question, and the cross-examination begins — The Builder pokes at whether the demo actually runs, The Skeptic at whether anyone will pay for it, The Futurist at whether the agent truly improvises. You answer right there in the thread; "not built yet" is a legal answer. When the clock hits zero the court steps out — you're removed from the thread while the jury deliberates in private — and the verdict is posted back. Minutes later, your session is playing on the livestream as a voiced drama, and your scores land sealed in the sheet until the top-six announcement.
+
+**The audience.** Open the broadcast URL (or watch the stream). Each case plays as a group-chat replay from the participant's seat: the team's demo video first, then the dialogue — judges on the left, team on the right, typing indicators, every line voiced, scores never shown. The verdict arrives as a sealed card. Cases auto-advance; when a new verdict lands somewhere in Discord, the next case simply appears a few minutes later. There is no schedule — the bench plays whatever has been judged.
+
+**The operator.** Arrive, plug in, run `./scripts/event_start.sh` — done. From there the system is autonomous: verdict → voiced → queued → public, ~3 minutes per case, zero clicks. You watch one log (`tail -f out/broadcast_watch.log`) and intervene only if it yells: a manual re-upload command for a failed push, or the skip-case button on the stream screen to move things along. The screen itself can live on an entirely different laptop — it's just a browser on the public URL.
+
+## How the repo is structured — three layers
+
+```
+LAYER 1 — THE BRAIN      judging/ · prompts/ · schemas/ · config.json
+          Deterministic plumbing + LLM judgment. Intake, dedupe, injection
+          defence, smoke tests, three sealed persona prompts scoring blind,
+          aggregation, shortlist, sheet write-back. Nothing here performs;
+          it just has to be right.
+
+LAYER 2 — THE COURTROOM  judging/discordx/ · foreman/ · specs/
+          Where teams actually meet the jury: four Discord bots, private
+          case threads, the Q&A clock, deliberation, the verdict line.
+          The verdict post is the contract between this layer and the next.
+
+LAYER 3 — THE STAGE      broadcast/ · scripts/ · broadcast_host/
+          The public show. A static site with no backend — the automation
+          writes files, the player polls and plays. Everything the audience
+          sees lives here; everything that fetches/voices/uploads a case
+          lives in scripts/.
+```
+
+Data crosses the layers as plain files — a case's journey:
+
+```
+thread log            out/discord_logs/case-T07.log        (layer 2 → 3)
+dialogue manifest     broadcast/sources/case_T07.json      (who says what)
+voiced clips          broadcast/sources/audio/case_T07_*.mp3
+player bundle         broadcast/segments/case_T07.json     (+ team metadata)
+the queue             broadcast/segments/playlist.json     (completion order)
+```
+
+### File map
 
 ```
 judging/                the judging service (intake → scores → shortlist)
