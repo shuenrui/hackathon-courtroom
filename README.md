@@ -42,8 +42,10 @@ Static site (nginx on ifhost VM, or any static host)
 LAYER 1 — THE BRAIN      judging/ · prompts/ · schemas/ · config.json
           Deterministic plumbing + LLM judgment. Intake, dedupe, injection
           defence, smoke tests, three sealed persona prompts scoring blind,
-          aggregation, shortlist, sheet write-back. Nothing here performs;
-          it just has to be right.
+          aggregation, shortlist, sheet write-back. The jury gets senses too:
+          headless-Chromium browsing of the live build, and local Whisper
+          transcription of demo videos (no audio ever leaves the machine).
+          Nothing here performs; it just has to be right.
 
 LAYER 2 — THE COURTROOM  judging/discordx/ · foreman/ · specs/
           Where teams actually meet the jury: four Discord bots, private
@@ -133,6 +135,7 @@ Event-day startup on the machine running the pipeline:
 - **The broadcast is 100% static.** No backend. The "live" behavior is the pipeline writing files and the player polling the playlist. You can host it on anything that serves files.
 - **One case at a time, by design.** The courtroom shows one case at a time; the pipeline matches the spectacle.
 - **The jury learns.** After each case, a reflection pass distills transferable lessons into a knowledge ledger that sharpens later questioning — never the rubric, never the current case's evidence.
+- **The jury gets senses, locally.** Jurors can't watch, so the system browses the live build headlessly and transcribes demo videos with a tiny on-device Whisper model — the transcript joins the evidence bundle, and no audio ever touches a cloud API.
 
 ## A note from the builder
 
@@ -140,4 +143,4 @@ I built this for one event and iterated my way there — a cinematic "courtroom 
 
 ## Requirements
 
-Python 3.11+. `requirements.txt` pins the runtime deps (requests, jsonschema, gspread, discord.py, edge-tts). ElevenLabs hosting of the broadcast is optional — see the getting-started guide.
+Python 3.11+. `requirements.txt` pins the runtime deps (requests, jsonschema, gspread, discord.py, edge-tts, faster-whisper, yt-dlp). Local demo-video transcription also needs `ffmpeg` on the box. ElevenLabs hosting of the broadcast is optional — see the getting-started guide.

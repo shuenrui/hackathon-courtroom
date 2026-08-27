@@ -78,6 +78,15 @@ Any OpenAI-compatible endpoint works. `config.json`:
 
 Each juror call returns strict JSON (validated against `schemas/blind_score.schema.json`): **private scores** (→ sheet, never posted) and a **visible review + up to 3 questions** (→ team thread). Anything score-shaped is stripped before posting — a leaked `7/10` becomes `[score held back]`.
 
+### Giving the jury senses
+
+The jurors can't watch — so the system gives them eyes and ears instead:
+
+- **Eyes**: a headless-Chromium browse tool renders the team's live URL (JS SPAs included) and reports what's actually on the page, so "the demo works" is checked, not taken on faith.
+- **Ears**: `judging/transcribe.py` transcribes the team's demo video **locally** — yt-dlp pulls the audio (HTTPS YouTube only, ≤5 min, ≤100MB), a `faster-whisper` tiny model (CPU, int8) transcribes it on-device, and the text lands in the form's *Video Transcript* column → the jurors' evidence bundle. No audio ever leaves the machine; there is no cloud speech API in this pipeline.
+
+`judging/transcribe_watcher.py` runs this as a daemon: it watches the intake for responses with a blank transcript and fills them from the demo video. Needs `ffmpeg` on the box. Deployed as a service on the event machine (`deploy/transcribe-watcher.service`).
+
 ---
 
 ## Step 3 — Intake: form → sheet → service
