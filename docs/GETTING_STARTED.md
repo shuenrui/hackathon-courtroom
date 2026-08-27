@@ -19,8 +19,11 @@ Work through it in order; each step builds on the last.
 ```bash
 git clone https://github.com/shuenrui/hackathon-courtroom.git && cd hackathon-courtroom
 pip install -r requirements.txt
-cp .env.example .env   # fill it in as you go
+cp .env.example .env                     # fill it in as you go
+cp config.example.json config.json       # then put YOUR ids into config.json
 ```
+
+`config.json` is gitignored on purpose — it holds your guild/channel/spreadsheet IDs. The tracked `config.example.json` is the template; never commit your filled-in copy.
 
 ---
 

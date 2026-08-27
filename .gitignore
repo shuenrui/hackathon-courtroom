@@ -1,6 +1,7 @@
 *.pyc
 *service_account*.json
 .env
+config.json
 __pycache__/
 google-credentials*.json
 knowledge/

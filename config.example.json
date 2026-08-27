@@ -45,17 +45,17 @@
   },
   "sheets": {
     "credentials_path": "service-account.json",
-    "spreadsheet_id": "1jYElb0Kq98ZkWgLLSJWqMshnbvBsR9r0OkKL62ZldGM"
+    "spreadsheet_id": "YOUR_SPREADSHEET_ID"
   },
   "discord": {
-    "guild_id": "1483829659090026518",
+    "guild_id": "YOUR_GUILD_ID",
     "channels": {
-      "submissions": "1539843506674339890",
-      "cases": "1539843565482418196",
-      "live_feed": "1539843599376715846",
-      "announcements": "1539843665617231914",
-      "ops": "1539843769765986324",
-      "bot_health": "1539843831531442217"
+      "submissions": "YOUR_SUBMISSIONS_CHANNEL_ID",
+      "cases": "YOUR_CASES_CHANNEL_ID",
+      "live_feed": "YOUR_LIVE_FEED_CHANNEL_ID",
+      "announcements": "YOUR_ANNOUNCEMENTS_CHANNEL_ID",
+      "ops": "YOUR_OPS_CHANNEL_ID",
+      "bot_health": "YOUR_BOT_HEALTH_CHANNEL_ID"
     },
     "token_env": {
       "foreman": "DISCORD_TOKEN_FOREMAN",
