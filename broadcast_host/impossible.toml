@@ -1,0 +1,11 @@
+app = 'hackathon-broadcast'
+
+[service]
+internal_port = 80
+autostop = false
+min_machines = 1
+
+[resources]
+cpu_kind = 'shared'
+cpus = 1
+memory_mb = 256

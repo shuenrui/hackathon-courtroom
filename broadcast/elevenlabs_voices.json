@@ -1,0 +1,11 @@
+{
+  "engine": "elevenlabs",
+  "model_id": "eleven_v3",
+  "voices": {
+    "foreman": { "voice_id": "NuRyEq0OdD9mMOyd51UZ", "name": "Foreman", "role": "The Foreman", "speed": 1.5 },
+    "juror_one": { "voice_id": "RDSy0QN68yhrjuOgqzQ4", "name": "Dr Quibble", "role": "The Builder" },
+    "juror_two": { "voice_id": "FF59babHL8N8gfTgtBMT", "name": "Jodi", "role": "The Skeptic" },
+    "juror_three": { "voice_id": "0yXkuUWXDHdmdQJugJLb", "name": "Marquis", "role": "The Futurist" },
+    "team": { "voice_id": "s3TPKV1kjDlVtZbl4Ksh", "name": "Adam", "role": "The Team" }
+  }
+}

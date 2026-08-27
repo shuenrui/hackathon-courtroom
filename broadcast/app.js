@@ -1,428 +1,573 @@
-const SPEAKERS = {
-  juror_one: { name: "The Builder" },
-  juror_two: { name: "The Skeptic" },
-  juror_three: { name: "The Futurist" },
-  team: { name: "The Team" },
-};
+(() => {
+  const $ = (s, el = document) => el.querySelector(s);
 
-const KIND_LABEL = {
-  review: "Opening Read",
-  question: "Cross-Examination",
-  answer: "From the Floor",
-  followup: "Follow-Up",
-};
+  const SPEAKERS = {
+    foreman: { name: "Foreman Vegapunk", role: "THE BENCH", av: "V", img: "assets/avatar-foreman.png" },
+    juror_one: { name: "Pythagoras", role: "THE BUILDER", av: "P", img: "assets/avatar-builder.png" },
+    juror_two: { name: "Atlas", role: "THE SKEPTIC", av: "A", img: "assets/avatar-skeptic.png" },
+    juror_three: { name: "Edison", role: "THE FUTURIST", av: "E", img: "assets/avatar-futurist.png" },
+    team: { name: "The Team", role: "PARTICIPANT", av: "T" },
+  };
 
-const scenes = {};
-let playlist = null;
-let segments = [];
-let current = 0;
-let seq = 0;
-let paused = false;
-let muted = false;
-let started = false;
-let activeAudio = null;
-let activeVideo = null;
-let pauseTimer = null;
-let pauseRemaining = 0;
-let pauseResolve = null;
-let dockTimeout = null;
+  const state = {
+    segments: [],
+    loaded: new Set(),
+    skipped: [],
+    idx: 0,
+    lineIdx: 0,
+    started: false,
+    finished: false,
+    paused: false,
+    muted: false,
+    token: 0,
+  };
 
-const $ = (id) => document.getElementById(id);
+  /* ── voice engine: one Web Audio context, unlocked by the play
+        gesture, so every line is guaranteed audible ─────────── */
 
-function sceneNames() {
-  return ["standby", "title", "evidence", "dialogue", "close", "end"];
-}
+  const voice = {
+    ctx: null,
+    gain: null,
+    source: null,
+    buffer: null,
+    startedAt: 0,
+    offset: 0,
+    paused: false,
+    onEnded: null,
 
-function initScenes() {
-  for (const name of sceneNames()) scenes[name] = $("scene-" + name);
-}
+    async unlock() {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AC();
+        this.gain = this.ctx.createGain();
+        this.gain.connect(this.ctx.destination);
+      }
+      if (this.ctx.state === "suspended") await this.ctx.resume();
+    },
 
-function showScene(name) {
-  for (const other of sceneNames()) {
-    const el = scenes[other];
-    if (other === name) {
-      el.hidden = false;
-      requestAnimationFrame(() => el.setAttribute("data-active", "true"));
-    } else {
-      el.setAttribute("data-active", "false");
-      setTimeout(() => {
-        if (el.getAttribute("data-active") === "false") el.hidden = true;
-      }, 480);
-    }
-  }
-  document.body.dataset.scene = name;
-}
+    async load(src) {
+      const res = await fetch(src);
+      if (!res.ok) throw new Error("fetch " + res.status);
+      const arr = await res.arrayBuffer();
+      this.buffer = await this.ctx.decodeAudioData(arr);
+      this.offset = 0;
+      this.paused = false;
+    },
 
-function setStatus(text) {
-  $("dock-status").textContent = text;
-}
+    play() {
+      if (!this.buffer || !this.ctx) return;
+      this.source = this.ctx.createBufferSource();
+      this.source.buffer = this.buffer;
+      this.source.connect(this.gain);
+      this.source.onended = () => {
+        if (this.paused) return;
+        this.source = null;
+        if (this.onEnded) this.onEnded();
+      };
+      this.startedAt = this.ctx.currentTime - this.offset;
+      this.source.start(0, this.offset);
+    },
 
-function waitMs(ms, mySeq) {
-  return new Promise((resolve) => {
-    if (mySeq !== seq) return resolve(false);
+    pause() {
+      if (!this.source) return;
+      this.paused = true;
+      this.offset = this.ctx.currentTime - this.startedAt;
+      this.source.onended = null;
+      try { this.source.stop(); } catch (e) {}
+      this.source = null;
+    },
+
+    resume() {
+      if (!this.paused) return;
+      this.paused = false;
+      this.play();
+    },
+
+    stop() {
+      if (this.source) {
+        this.source.onended = null;
+        try { this.source.stop(); } catch (e) {}
+        this.source = null;
+      }
+      this.buffer = null;
+      this.offset = 0;
+      this.paused = false;
+      this.onEnded = null;
+    },
+
+    setMuted(m) {
+      if (this.gain) this.gain.gain.value = m ? 0 : 1;
+    },
+
+    get playing() {
+      return !!this.source && !this.paused;
+    },
+  };
+
+  /* ── primitives ──────────────────────────── */
+
+  const sleep = (ms) => new Promise((resolve) => {
+    const tok = state.token;
     let remaining = ms;
-    let startedAt = performance.now();
-    const finish = (ok) => {
-      pauseTimer = null;
-      pauseResolve = null;
-      resolve(ok);
-    };
-    pauseResolve = finish;
-    pauseTimer = setTimeout(() => finish(mySeq === seq), remaining);
-    pauseTimer._pause = () => {
-      clearTimeout(pauseTimer);
-      pauseRemaining = remaining - (performance.now() - startedAt);
-    };
-    pauseTimer._resume = () => {
-      startedAt = performance.now();
-      remaining = Math.max(0, pauseRemaining);
-      pauseTimer = setTimeout(() => finish(mySeq === seq), remaining);
-    };
-  });
-}
-
-function setPaused(next) {
-  if (paused === next) return;
-  paused = next;
-  $("btn-pause").textContent = paused ? "Resume" : "Pause";
-  if (paused) {
-    if (activeAudio) activeAudio.pause();
-    if (activeVideo) activeVideo.pause();
-    if (pauseTimer && pauseTimer._pause) pauseTimer._pause();
-    setStatus("Held");
-  } else {
-    if (activeAudio) activeAudio.play().catch(() => {});
-    if (activeVideo) activeVideo.play().catch(() => {});
-    if (pauseTimer && pauseTimer._resume) pauseTimer._resume();
-  }
-}
-
-function buildWordSpans(el, text) {
-  el.innerHTML = "";
-  const words = text.split(/\s+/).filter(Boolean);
-  for (const w of words) {
-    const span = document.createElement("span");
-    span.className = "word";
-    span.textContent = w;
-    el.appendChild(span);
-    el.appendChild(document.createTextNode(" "));
-  }
-  return el.querySelectorAll(".word");
-}
-
-function revealWords(el, durationMs, mySeq) {
-  return new Promise((resolve) => {
-    const words = el.querySelectorAll(".word");
-    if (!words.length) return resolve();
-    const step = durationMs / words.length;
-    let lit = 0;
     let last = performance.now();
-    let acc = 0;
-    const frame = (now) => {
-      if (mySeq !== seq) return resolve();
-      if (!paused) acc += now - last;
+    const tick = () => {
+      if (tok !== state.token) return resolve(false);
+      const now = performance.now();
+      if (!state.paused) remaining -= now - last;
       last = now;
-      while (lit < words.length && acc >= lit * step) {
-        words[lit].classList.add("lit");
-        lit++;
-      }
-      if (lit >= words.length) return resolve();
-      requestAnimationFrame(frame);
+      if (remaining <= 0) return resolve(true);
+      setTimeout(tick, 40);
     };
-    requestAnimationFrame(frame);
+    tick();
   });
-}
 
-function estimateMs(text) {
-  const words = text.split(/\s+/).filter(Boolean).length;
-  return Math.max(2400, words * 400);
-}
-
-function setSpeaker(speakerId, kind) {
-  const speaker = SPEAKERS[speakerId] || { name: speakerId };
-  const plate = $("speaker-plate");
-  plate.dataset.judge = speakerId;
-  $("speaker-name").textContent = speakerId === "team" && playlist ? (currentTeamName() || speaker.name) : speaker.name;
-  $("speaker-role").textContent = KIND_LABEL[kind] || "";
-  $("utterance").dataset.judge = speakerId;
-  document.querySelectorAll(".bench-mini").forEach((b) => {
-    b.classList.toggle("speaking", b.dataset.judge === speakerId);
-  });
-  const teamBench = document.querySelector('.bench-mini[data-judge="team"] span:last-child');
-  if (teamBench) teamBench.textContent = currentTeamName() || "The Team";
-}
-
-function currentTeamName() {
-  const seg = segments[current];
-  return seg ? seg.team_name : "";
-}
-
-function clearSpeaker() {
-  document.querySelectorAll(".bench-mini").forEach((b) => b.classList.remove("speaking"));
-}
-
-async function playLine(line, mySeq) {
-  setSpeaker(line.speaker, line.kind);
-  const el = $("utterance");
-  buildWordSpans(el, line.text);
-
-  let audioOk = false;
-  let dur = estimateMs(line.text);
-  if (line.audio) {
-    activeAudio = new Audio(line.audio);
-    activeAudio.muted = muted;
+  const playLine = async (src) => {
+    setVoice("LOADING");
     try {
-      await activeAudio.play();
-      audioOk = true;
-      if (activeAudio.duration && isFinite(activeAudio.duration)) {
-        dur = activeAudio.duration * 1000;
-      }
-    } catch {
-      audioOk = false;
+      await voice.load(src);
+    } catch (err) {
+      console.error("voice load failed:", src, err);
+      setVoice("ERROR");
+      return;
     }
-  }
-
-  const revealMs = Math.max(1200, dur * 0.94);
-  const reveal = revealWords(el, revealMs, mySeq);
-  if (audioOk) {
-    await new Promise((res) => {
-      activeAudio.onended = res;
-      activeAudio.onerror = res;
+    setVoice("PLAYING");
+    await new Promise((resolve) => {
+      voice.onEnded = () => { voice.onEnded = null; resolve(); };
+      voice.play();
     });
-  }
-  await reveal;
-  activeAudio = null;
-  if (mySeq !== seq) return false;
-  await waitMs(700, mySeq);
-  return mySeq === seq;
-}
+    setVoice("READY");
+  };
 
-async function playSegment(index, mySeq) {
-  const seg = segments[index];
-  if (!seg) return;
-  current = index;
-  updateRail();
+  const stopVoice = () => { voice.stop(); setVoice("READY"); };
 
-  showScene("title");
-  $("title-docket").textContent = `Docket · ${playlist.event || "Build with AI Agents"}`;
-  $("title-team").textContent = seg.team_name || `Team ${seg.team_number}`;
-  $("title-liner").textContent = seg.one_liner || "";
-  const stamp = $("case-stamp");
-  stamp.textContent = `CASE ${String(seg.team_number).padStart(2, "0")}`;
-  stamp.classList.remove("smash");
-  void stamp.offsetWidth;
-  stamp.classList.add("smash");
-  document.body.classList.add("shake");
-  setTimeout(() => document.body.classList.remove("shake"), 450);
-  setStatus(`Case ${String(seg.team_number).padStart(2, "0")} — opening`);
-  if (!(await waitMs(3600, mySeq))) return;
+  const fmtTime = (ts) => {
+    if (!ts) return "";
+    const m = ts.match(/T(\d{2}:\d{2})/);
+    return m ? m[1] : "";
+  };
 
-  if (seg.demo_video) {
-    showScene("evidence");
-    setStatus(`Case ${String(seg.team_number).padStart(2, "0")} — exhibit`);
-    const video = $("evidence-video");
-    activeVideo = video;
-    $("evidence-placeholder").hidden = true;
-    video.src = seg.demo_video;
-    const done = new Promise((res) => {
-      video.onended = res;
-      video.onerror = res;
+  const seg = () => state.segments[state.idx];
+
+  /* ── rendering ───────────────────────────── */
+
+  const chatCol = () => $("#chat-col");
+  const chatScroll = () => $("#chat-scroll");
+  const scrollDown = () => {
+    const sc = chatScroll();
+    sc.scrollTo({ top: sc.scrollHeight, behavior: "smooth" });
+  };
+
+  const setProgress = (text) => { $("#bar-progress").textContent = text; };
+  const setVoice = (text) => { $("#bar-voice").textContent = "VOICE / " + text; };
+
+  const bigplayHtml = () => `
+    <div class="bigplay" id="bigplay">
+      <button class="bigplay-btn mono" id="btn-bigplay">▶&nbsp;&nbsp;PLAY JUDGING SESSION</button>
+      <p class="bigplay-note mono">${seg().lines.length} MESSAGES / VOICED REPLAY / SCORES SEALED</p>
+    </div>`;
+
+  const header = () => {
+    const s = seg();
+    $("#head-case").textContent = `TEAM ${s.team_number} — ${(s.team_name || "").toUpperCase()}`;
+    $("#head-team").textContent = s.case_id.replace("case_", "CASE ").toUpperCase();
+    $("#head-oneliner").textContent = s.one_liner || "";
+  };
+
+  const resetChat = () => {
+    chatCol().innerHTML = bigplayHtml();
+    $("#btn-bigplay").addEventListener("click", play);
+    state.lineIdx = 0;
+    state.started = false;
+    state.finished = false;
+    setProgress("READY");
+    $("#btn-play").textContent = "▶ PLAY";
+  };
+
+  const speakerOf = (line) => {
+    const s = seg();
+    if (line.speaker === "team") {
+      return { name: s.team_name, role: `TEAM ${s.team_number}`, av: (s.team_name || "T")[0].toUpperCase() };
+    }
+    return SPEAKERS[line.speaker] || SPEAKERS.team;
+  };
+
+  const avHtml = (sp) => sp.img
+    ? `<div class="msg-av msg-av-img"><img src="${sp.img}" alt=""></div>`
+    : `<div class="msg-av">${sp.av}</div>`;
+
+  const appendTyping = (line) => {
+    const sp = speakerOf(line);
+    const el = document.createElement("div");
+    el.className = "msg msg-typing";
+    el.innerHTML = `
+      ${avHtml(sp)}
+      <div class="msg-body">
+        <span class="typing-label">${sp.name.toUpperCase()} IS TYPING<span class="tdots"><span>.</span><span>.</span><span>.</span></span></span>
+      </div>`;
+    chatCol().appendChild(el);
+    requestAnimationFrame(() => el.classList.add("is-in"));
+    scrollDown();
+  };
+
+  const removeTyping = () => {
+    const t = chatCol().querySelector(".msg-typing");
+    if (t) t.remove();
+  };
+
+  const appendMessage = (line) => {
+    const sp = speakerOf(line);
+    const el = document.createElement("div");
+    el.className = "msg";
+    el.dataset.speaker = line.speaker;
+    el.dataset.kind = line.kind;
+
+    if (line.kind === "sealed") {
+      el.classList.add("msg-sealed");
+      el.innerHTML = `
+        ${avHtml(sp)}
+        <div class="msg-body">
+          <div class="msg-head">
+            <span class="msg-name">${sp.name}</span>
+            <span class="msg-role">VERDICT</span>
+            <span class="msg-time">${fmtTime(line.ts)}</span>
+          </div>
+          <div class="sealed-card">
+            <div class="sealed-bars"><i></i><i></i><i></i></div>
+            <p class="sealed-label">VERDICT / SEALED</p>
+            <p class="sealed-note">Scores stay sealed until the top-six announcement at 16:45.</p>
+          </div>
+        </div>`;
+    } else {
+      el.innerHTML = `
+        ${avHtml(sp)}
+        <div class="msg-body">
+          <div class="msg-head">
+            <span class="msg-name">${sp.name}</span>
+            <span class="msg-role">${sp.role}</span>
+            <span class="msg-time">${fmtTime(line.ts)}</span>
+          </div>
+          <div class="msg-text">${line.text}</div>
+        </div>`;
+    }
+
+    chatCol().querySelectorAll(".msg.is-current").forEach((m) => m.classList.remove("is-current"));
+    chatCol().appendChild(el);
+    requestAnimationFrame(() => el.classList.add("is-in"));
+    el.classList.add("is-current");
+    scrollDown();
+  };
+
+  const appendEndcard = () => {
+    const el = document.createElement("div");
+    el.className = "endcard";
+    const hasNext = state.idx + 1 < state.segments.length;
+    el.innerHTML = `
+      <p class="endcard-line mono">CASE SEALED / VERDICT ON RECORD / SCORES REVEALED 16:45</p>
+      ${hasNext ? '<div class="endcard-next"><button id="btn-next">NEXT CASE →</button></div>' : ""}`;
+    chatCol().appendChild(el);
+    if (hasNext) $("#btn-next").addEventListener("click", () => { state.token += 1; loadCase(state.idx + 1); play(); });
+    scrollDown();
+  };
+
+  /* ── live queue: pick up new cases as the watcher stages them ── */
+
+  const refreshPlaylist = async () => {
+    const bust = "?b=" + Date.now();
+    try {
+      const pl = await (await fetch("segments/playlist.json" + bust)).json();
+      if (pl.segments.length > state.segments.length + state.skipped.length) {
+        let added = false;
+        for (const f of pl.segments) {
+          if (state.loaded.has(f)) continue;
+          try {
+            const r = await fetch("segments/" + f + bust);
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            state.segments.push(await r.json());
+            state.loaded.add(f);
+            added = true;
+          } catch (err) {
+            console.error("skipping broken segment:", f, err);
+            state.skipped.push(f);
+          }
+        }
+        return added;
+      }
+    } catch (err) { /* keep waiting */ }
+    return false;
+  };
+
+  const showWaiting = () => {
+    const el = document.createElement("div");
+    el.className = "waitcard mono";
+    el.id = "waitcard";
+    el.innerHTML = `
+      <p class="wait-line">STANDBY — NEXT CASE IN PREPARATION<span class="pulse"></span></p>
+      <p class="wait-sub">THE BENCH RECONVENES AUTOMATICALLY WHEN A VERDICT LANDS</p>`;
+    chatCol().appendChild(el);
+    scrollDown();
+  };
+
+  const standby = async () => {
+    const tok = state.token;
+    setProgress("STANDBY / WAITING FOR NEXT CASE");
+    showWaiting();
+    while (tok === state.token) {
+      if (!(await sleep(15000))) return;
+      if (tok !== state.token) return;
+      if (await refreshPlaylist()) {
+        if (tok !== state.token) return;
+        loadCase(state.idx + 1);
+        play();
+        return;
+      }
+    }
+  };
+
+  const autoAdvance = async () => {
+    const tok = state.token;
+    if (!(await sleep(5000))) return;
+    if (tok !== state.token) return;
+
+    if (state.idx + 1 < state.segments.length) {
+      loadCase(state.idx + 1);
+      play();
+      return;
+    }
+
+    standby();
+  };
+
+  /* ── demo video stage ────────────────────── */
+
+  const playDemo = () => new Promise((resolve) => {
+    const s = seg();
+    const src = s.demo_video;
+    setProgress("DEMO VIDEO");
+
+    const stage = document.createElement("div");
+    stage.className = "video-stage";
+
+    const finish = () => {
+      if (stage.parentNode) stage.remove();
+      resolve();
+    };
+
+    const isYouTube = /youtube\.com|youtu\.be/.test(src);
+
+    if (isYouTube) {
+      const id = (src.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/) || [])[1] || "";
+      stage.innerHTML = `
+        <p class="video-k mono">DEMO VIDEO / ${s.team_name.toUpperCase()}</p>
+        <div class="video-frame">
+          <div id="yt-player"></div>
+        </div>
+        <button class="video-skip mono" id="btn-skipvideo">SKIP VIDEO →</button>`;
+      chatCol().appendChild(stage);
+      $("#btn-skipvideo").addEventListener("click", finish);
+      stage.scrollIntoView({ behavior: "smooth", block: "start" });
+
+      const start = () => {
+        const player = new window.YT.Player("yt-player", {
+          videoId: id,
+          width: "100%",
+          height: "100%",
+          playerVars: { autoplay: 1, rel: 0, modestbranding: 1 },
+          events: { onStateChange: (e) => { if (e.data === window.YT.PlayerState.ENDED) finish(); } },
+        });
+        stage._player = player;
+      };
+      if (window.YT && window.YT.Player) start();
+      else {
+        const tag = document.createElement("script");
+        tag.src = "https://www.youtube.com/iframe_api";
+        tag.onload = () => setTimeout(start, 100);
+        document.head.appendChild(tag);
+      }
+    } else {
+      stage.innerHTML = `
+        <p class="video-k mono">DEMO VIDEO / ${s.team_name.toUpperCase()}</p>
+        <div class="video-frame">
+          <video id="demo-video" src="${src}" autoplay playsinline></video>
+        </div>
+        <button class="video-skip mono" id="btn-skipvideo">SKIP VIDEO →</button>`;
+      chatCol().appendChild(stage);
+      const v = $("#demo-video");
+      v.addEventListener("ended", finish);
+      v.addEventListener("error", finish);
+      $("#btn-skipvideo").addEventListener("click", finish);
+      stage.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+
+  /* ── playback ────────────────────────────── */
+
+  const runLoop = async () => {
+    const tok = state.token;
+    const s = seg();
+
+    while (state.lineIdx < s.lines.length) {
+      if (tok !== state.token) return;
+      const line = s.lines[state.lineIdx];
+
+      if (line.kind !== "sealed") {
+        appendTyping(line);
+        const typingMs = Math.min(900 + line.text.length * 5, 2400);
+        if (!(await sleep(typingMs))) return;
+        removeTyping();
+      }
+
+      appendMessage(line);
+      state.lineIdx += 1;
+      setProgress(`MSG ${state.lineIdx} / ${s.lines.length}`);
+
+      if (line.audio) {
+        await playLine(line.audio);
+        if (tok !== state.token) return;
+      } else if (line.kind === "sealed") {
+        if (!(await sleep(3200))) return;
+      }
+      if (!(await sleep(400))) return;
+    }
+
+    if (tok !== state.token) return;
+    state.finished = true;
+    setProgress("COMPLETE / SEALED");
+    $("#btn-play").textContent = "⟲ REPLAY";
+    appendEndcard();
+    autoAdvance();
+  };
+
+  const play = async () => {
+    if (state.finished) { restart(); return; }
+    if (state.paused) { togglePause(); return; }
+    if (state.started) return;
+    state.started = true;
+
+    await voice.unlock();
+    voice.setMuted(state.muted);
+
+    const bp = $("#bigplay");
+    if (bp) bp.classList.add("is-gone");
+    $("#btn-play").textContent = "❚❚ PAUSE";
+
+    const tok = state.token;
+    if (seg().demo_video) {
+      await playDemo();
+      if (tok !== state.token) return;
+    }
+    setProgress("PLAYING");
+    runLoop();
+  };
+
+  const togglePause = () => {
+    if (!state.started || state.finished) return;
+    state.paused = !state.paused;
+    document.body.classList.toggle("paused", state.paused);
+    $("#btn-play").textContent = state.paused ? "▶ RESUME" : "❚❚ PAUSE";
+    setProgress(state.paused ? `PAUSED / MSG ${state.lineIdx} / ${seg().lines.length}` : "PLAYING");
+    if (state.paused) voice.pause();
+    else voice.resume();
+  };
+
+  const restart = () => {
+    state.token += 1;
+    stopVoice();
+    state.paused = false;
+    document.body.classList.remove("paused");
+    resetChat();
+    play();
+  };
+
+  const skipCase = () => {
+    state.token += 1;
+    stopVoice();
+    state.paused = false;
+    document.body.classList.remove("paused");
+    if (state.idx + 1 < state.segments.length) {
+      loadCase(state.idx + 1);
+      play();
+      return;
+    }
+    chatCol().innerHTML = "";
+    chatScroll().scrollTo({ top: 0 });
+    standby();
+  };
+
+  const loadCase = (i) => {
+    state.token += 1;
+    stopVoice();
+    state.idx = i;
+    state.paused = false;
+    document.body.classList.remove("paused");
+    header();
+    resetChat();
+    chatScroll().scrollTo({ top: 0 });
+  };
+
+  const toggleMute = () => {
+    state.muted = !state.muted;
+    voice.setMuted(state.muted);
+    $("#btn-mute").textContent = state.muted ? "UNMUTE" : "MUTE";
+  };
+
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
+  };
+
+  /* ── boot ────────────────────────────────── */
+
+  const tickClock = () => {
+    const d = new Date();
+    $("#bar-clock").textContent =
+      String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  };
+
+  const boot = async () => {
+    const bust = "?b=" + Date.now();
+    try {
+      const pl = await (await fetch("segments/playlist.json" + bust)).json();
+      for (const f of pl.segments) {
+        try {
+          const r = await fetch("segments/" + f + bust);
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          state.segments.push(await r.json());
+          state.loaded.add(f);
+        } catch (err) {
+          console.error("skipping broken segment:", f, err);
+          state.skipped.push(f);
+        }
+      }
+    } catch (err) {
+      console.error("failed to load playlist", err);
+      setProgress("ERROR / PLAYLIST NOT FOUND");
+      return;
+    }
+    if (!state.segments.length) {
+      setProgress("ERROR / NO PLAYABLE CASES");
+      return;
+    }
+
+    loadCase(0);
+    tickClock();
+    setInterval(tickClock, 10000);
+
+    $("#btn-play").addEventListener("click", play);
+    $("#btn-restart").addEventListener("click", restart);
+    $("#btn-skipcase").addEventListener("click", skipCase);
+    $("#btn-mute").addEventListener("click", toggleMute);
+    $("#btn-full").addEventListener("click", toggleFullscreen);
+
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "Space") { e.preventDefault(); state.started && !state.finished ? togglePause() : play(); }
+      else if (e.key === "r" || e.key === "R") restart();
+      else if (e.key === "n" || e.key === "N") skipCase();
+      else if (e.key === "m" || e.key === "M") toggleMute();
+      else if (e.key === "f" || e.key === "F") toggleFullscreen();
     });
-    video.play().catch(() => {});
-    await done;
-    activeVideo = null;
-    video.removeAttribute("src");
-    video.load();
-    if (mySeq !== seq) return;
-    if (!(await waitMs(600, mySeq))) return;
-  }
 
-  showScene("dialogue");
-  $("case-label").textContent = `Case ${String(seg.team_number).padStart(2, "0")}`;
-  let proceeding = 0;
-  for (const line of seg.lines) {
-    if (mySeq !== seq) return;
-    proceeding++;
-    $("proceeding-label").textContent = `Proceeding ${String(proceeding).padStart(2, "0")} · ${KIND_LABEL[line.kind] || "Testimony"}`;
-    setStatus(`Case ${String(seg.team_number).padStart(2, "0")} — ${KIND_LABEL[line.kind] || "testimony"}`);
-    const ok = await playLine(line, mySeq);
-    if (!ok) return;
-  }
-  clearSpeaker();
+    if (location.search.includes("autostart")) play();
+  };
 
-  showScene("close");
-  setStatus(`Case ${String(seg.team_number).padStart(2, "0")} — closed`);
-  const closeStamp = document.querySelector(".close-stamp");
-  closeStamp.classList.remove("smash");
-  void closeStamp.offsetWidth;
-  closeStamp.classList.add("smash");
-  if (!(await waitMs(5200, mySeq))) return;
-
-  if (index + 1 < segments.length) {
-    await playSegment(index + 1, mySeq);
-  } else {
-    showScene("end");
-    setStatus("Adjourned");
-  }
-}
-
-function jumpTo(index) {
-  if (index < 0 || index >= segments.length) return;
-  seq++;
-  paused = false;
-  $("btn-pause").textContent = "Pause";
-  playSegment(index, seq);
-}
-
-function updateRail() {
-  const rail = $("rail");
-  rail.innerHTML = "";
-  segments.forEach((seg, i) => {
-    const frame = document.createElement("button");
-    frame.className = "rail-frame";
-    if (i < current) frame.classList.add("done");
-    if (i === current) frame.classList.add("current");
-    frame.textContent = `CASE ${String(seg.team_number).padStart(2, "0")}`;
-    frame.title = seg.team_name || "";
-    frame.addEventListener("click", () => jumpTo(i));
-    rail.appendChild(frame);
-  });
-  const cur = rail.querySelector(".current");
-  if (cur) cur.scrollIntoView({ inline: "center", block: "nearest" });
-}
-
-function pokeDock() {
-  const dock = $("dock");
-  dock.classList.remove("dock-hidden");
-  clearTimeout(dockTimeout);
-  dockTimeout = setTimeout(() => {
-    if (!paused && started) dock.classList.add("dock-hidden");
-  }, 3500);
-}
-
-function toggleDock(force) {
-  const dock = $("dock");
-  const show = force !== undefined ? force : dock.classList.contains("dock-hidden");
-  dock.classList.toggle("dock-hidden", !show);
-  if (show) pokeDock();
-}
-
-async function loadPlaylist() {
-  try {
-    const res = await fetch("segments/playlist.json");
-    if (!res.ok) throw new Error("no playlist");
-    playlist = await res.json();
-    const loaded = await Promise.all(
-      playlist.segments.map(async (file) => {
-        const r = await fetch("segments/" + file);
-        return r.ok ? r.json() : null;
-      })
-    );
-    segments = loaded.filter(Boolean);
-  } catch {
-    segments = [];
-  }
-  if (!segments.length) {
-    $("standby-sub").textContent = "No cases prepared — run prepare.py to build the docket.";
-    $("btn-convene").disabled = true;
-    $("btn-convene").textContent = "DOCKET EMPTY";
-  }
-  updateRail();
-}
-
-function convene() {
-  if (!segments.length) return;
-  started = true;
-  $("dock").hidden = false;
-  pokeDock();
-  jumpTo(0);
-}
-
-function toStandby() {
-  seq++;
-  paused = false;
-  started = false;
-  showScene("standby");
-  setStatus("Standby");
-}
-
-function bindControls() {
-  $("btn-convene").addEventListener("click", convene);
-  $("btn-prev").addEventListener("click", () => jumpTo(Math.max(0, current - 1)));
-  $("btn-next").addEventListener("click", () => jumpTo(Math.min(segments.length - 1, current + 1)));
-  $("btn-pause").addEventListener("click", () => setPaused(!paused));
-
-  document.addEventListener("keydown", (e) => {
-    if (e.code === "Space") {
-      e.preventDefault();
-      if (started) setPaused(!paused);
-    } else if (e.key === "ArrowRight") {
-      jumpTo(Math.min(segments.length - 1, current + 1));
-    } else if (e.key === "ArrowLeft") {
-      jumpTo(Math.max(0, current - 1));
-    } else if (e.key === "f" || e.key === "F") {
-      if (document.fullscreenElement) document.exitFullscreen();
-      else document.documentElement.requestFullscreen().catch(() => {});
-    } else if (e.key === "m" || e.key === "M") {
-      muted = !muted;
-      if (activeAudio) activeAudio.muted = muted;
-      setStatus(muted ? "Muted" : "Sound on");
-    } else if (e.key === "h" || e.key === "H") {
-      toggleDock();
-    } else if (e.key === "s" || e.key === "S") {
-      toStandby();
-    }
-  });
-
-  document.addEventListener("mousemove", () => {
-    if (started) pokeDock();
-  });
-}
-
-initScenes();
-bindControls();
-const boot = loadPlaylist();
-
-const debugScene = new URLSearchParams(location.search).get("scene");
-if (debugScene) {
-  boot.then(() => {
-    if (!segments.length) return;
-    const segIndex = Math.min(segments.length - 1, parseInt(new URLSearchParams(location.search).get("seg") || "0", 10));
-    const lineIndex = parseInt(new URLSearchParams(location.search).get("line") || "0", 10);
-    current = segIndex;
-    started = true;
-    $("dock").hidden = false;
-    updateRail();
-    const seg = segments[segIndex];
-    if (debugScene === "title") {
-      showScene("title");
-      $("title-team").textContent = seg.team_name || `Team ${seg.team_number}`;
-      $("title-liner").textContent = seg.one_liner || "";
-      $("case-stamp").textContent = `CASE ${String(seg.team_number).padStart(2, "0")}`;
-    } else if (debugScene === "evidence") {
-      showScene("evidence");
-      if (seg.demo_video) {
-        $("evidence-video").src = seg.demo_video;
-        $("evidence-video").muted = true;
-        $("evidence-video").play().catch(() => {});
-      } else {
-        $("evidence-placeholder").hidden = false;
-      }
-    } else if (debugScene === "dialogue") {
-      showScene("dialogue");
-      const line = seg.lines[Math.min(lineIndex, seg.lines.length - 1)];
-      setSpeaker(line.speaker, line.kind);
-      $("utterance").innerHTML = "";
-      for (const w of line.text.split(/\s+/).filter(Boolean)) {
-        const span = document.createElement("span");
-        span.className = "word lit";
-        span.textContent = w;
-        $("utterance").appendChild(span);
-        $("utterance").appendChild(document.createTextNode(" "));
-      }
-      $("case-label").textContent = `Case ${String(seg.team_number).padStart(2, "0")}`;
-    } else if (debugScene === "close") {
-      showScene("close");
-    }
-  });
-}
+  boot();
+})();

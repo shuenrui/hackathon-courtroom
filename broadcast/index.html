@@ -1,134 +1,69 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Tribunal — Build with AI Agents</title>
-<link rel="stylesheet" href="fonts.css">
-<link rel="stylesheet" href="styles.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Agent Hackathon 2026 — Judging Replay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=11">
 </head>
-<body data-scene="standby">
-<!--
-THESIS: A live AI tribunal — three AI judges interrogate each hackathon build as a courtroom case; refuses the Discord-replay overlay and the esports desk.
-OWN-WORLD: mahogany-ink dark, ivory record type, brass accents, three judge sigils (amber / cyan / violet), Courier Prime court-record labels, Marcellus inscriptional titles.
-STORY: the room believes AI judging is rigorous theatre; they see the evidence, hear the cross-examination, and never see a score.
-FIRST VIEWPORT: full-bleed courtroom dark; THE TRIBUNAL wordmark with gavel; the three judge benches named in their colors; CONVENE COURT action at center.
-FORM: brief-pinned direction "The Tribunal" (locked 2026-08-18); seed 6d5ff76e acknowledged, superseded by the pin; challenger steals: smash-cut stamps, line-by-line arrival, operator rail with flag.
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md.
--->
-<main id="stage" aria-live="off">
+<body>
 
-  <section class="scene scene-standby" id="scene-standby">
-    <div class="standby-crown">
-      <svg class="gavel-mark" viewBox="0 0 64 64" aria-hidden="true">
-        <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
-          <path d="M14 38 L30 22"/>
-          <rect x="26" y="8" width="24" height="12" rx="2" transform="rotate(45 38 14)"/>
-          <path d="M10 52 h22"/>
-          <path d="M21 52 v-6"/>
-        </g>
-      </svg>
-      <p class="record-label">Devin × Claw Collective × Qwen Hackathon · Build with AI Agents</p>
+<svg class="hexfield" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <polygon points="1350,-170 977,45 977,475 1350,690 1723,475 1723,45" fill="#101010" stroke="#101010" stroke-width="90" stroke-linejoin="round"/>
+  <polygon points="1050,710 816,845 816,1115 1050,1250 1284,1115 1284,845" fill="#0E0E0E" stroke="#0E0E0E" stroke-width="70" stroke-linejoin="round"/>
+</svg>
+
+<div id="stage">
+
+  <header class="head">
+    <div class="lockup">
+      <img class="lk lk-devin" src="assets/devin.png" alt="Devin">
+      <span class="lk-rule"></span>
+      <span class="lk-claw">
+        <img class="lk lk-clawimg" src="assets/claw.png" alt="Claw Collective">
+        <span class="lk-prev mono">prev. OpenClaw KL</span>
+      </span>
+      <span class="lk-rule"></span>
+      <img class="lk lk-qwen" src="assets/qwen.webp" alt="Qwen">
     </div>
-    <h1 class="wordmark">THE TRIBUNAL</h1>
-    <p class="standby-sub">Three AI judges. One bench. Every build answers for itself.</p>
-    <div class="bench-intro" id="bench-intro">
-      <div class="bench-card" data-judge="juror_one">
-        <span class="sigil" aria-hidden="true"></span>
-        <span class="bench-name">The Builder</span>
-        <span class="bench-lens">what was built</span>
+
+    <div class="head-main">
+      <div class="head-left">
+        <p class="h-kicker mono">JUDGING SESSION / 23.08.26</p>
+        <h1 class="h-case" id="head-case">TEAM 1 — REHEARSAL RAYA</h1>
       </div>
-      <div class="bench-card" data-judge="juror_two">
-        <span class="sigil" aria-hidden="true"></span>
-        <span class="bench-name">The Skeptic</span>
-        <span class="bench-lens">what holds up</span>
-      </div>
-      <div class="bench-card" data-judge="juror_three">
-        <span class="sigil" aria-hidden="true"></span>
-        <span class="bench-name">The Futurist</span>
-        <span class="bench-lens">what it becomes</span>
+      <div class="head-right">
+        <p class="h-team mono" id="head-team">CASE T01</p>
+        <p class="h-line" id="head-oneliner"></p>
       </div>
     </div>
-    <button class="convene" id="btn-convene">CONVENE COURT</button>
-    <p class="record-label standby-clock">Court convenes 15:00 · Judging in session 14:00–16:00</p>
-  </section>
+  </header>
 
-  <section class="scene scene-title" id="scene-title" hidden>
-    <p class="record-label title-docket" id="title-docket">Docket · Build with AI Agents</p>
-    <div class="stamp-wrap">
-      <div class="case-stamp" id="case-stamp">CASE 01</div>
-    </div>
-    <h2 class="team-name" id="title-team">Team 1</h2>
-    <p class="team-liner" id="title-liner"></p>
-  </section>
-
-  <section class="scene scene-evidence" id="scene-evidence" hidden>
-    <div class="evidence-frame">
-      <div class="evidence-corner tl"></div><div class="evidence-corner tr"></div>
-      <div class="evidence-corner bl"></div><div class="evidence-corner br"></div>
-      <video id="evidence-video" playsinline></video>
-      <div class="evidence-placeholder" id="evidence-placeholder" hidden>
-        <span class="record-label">Exhibit withheld — demonstration on file</span>
+  <div class="chat-scroll" id="chat-scroll">
+    <div class="chat-col" id="chat-col">
+      <div class="bigplay" id="bigplay">
+        <button class="bigplay-btn mono" id="btn-bigplay">▶&nbsp;&nbsp;PLAY JUDGING SESSION</button>
+        <p class="bigplay-note mono">15 MESSAGES / VOICED REPLAY / SCORES SEALED</p>
       </div>
     </div>
-    <p class="record-label evidence-tag">Exhibit A · Live Demonstration</p>
-  </section>
-
-  <section class="scene scene-dialogue" id="scene-dialogue" hidden>
-    <div class="bench-row" id="bench-row">
-      <div class="bench-mini" data-judge="juror_one"><span class="sigil"></span><span>The Builder</span></div>
-      <div class="bench-mini" data-judge="juror_two"><span class="sigil"></span><span>The Skeptic</span></div>
-      <div class="bench-mini" data-judge="juror_three"><span class="sigil"></span><span>The Futurist</span></div>
-      <div class="bench-mini bench-team" data-judge="team"><span class="sigil"></span><span id="bench-team-name">The Team</span></div>
-    </div>
-    <div class="testimony">
-      <div class="speaker-plate" id="speaker-plate">
-        <span class="speaker-sigil" id="speaker-sigil"></span>
-        <span class="speaker-name" id="speaker-name">The Builder</span>
-        <span class="speaker-role record-label" id="speaker-role">Cross-Examination</span>
-      </div>
-      <p class="utterance" id="utterance"></p>
-    </div>
-    <div class="record-strip">
-      <span class="record-label" id="proceeding-label">Proceeding 01 · Cross-Examination</span>
-      <span class="record-label" id="case-label">Case 01</span>
-    </div>
-  </section>
-
-  <section class="scene scene-close" id="scene-close" hidden>
-    <div class="close-file">
-      <div class="close-stamp">CASE CLOSED</div>
-      <h2 class="close-line">The jury deliberates<span class="dots"><span>.</span><span>.</span><span>.</span></span></h2>
-      <p class="record-label">Scores remain sealed · The bench will return its verdict</p>
-    </div>
-  </section>
-
-  <section class="scene scene-end" id="scene-end" hidden>
-    <svg class="gavel-mark" viewBox="0 0 64 64" aria-hidden="true">
-      <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
-        <path d="M14 38 L30 22"/>
-        <rect x="26" y="8" width="24" height="12" rx="2" transform="rotate(45 38 14)"/>
-        <path d="M10 52 h22"/>
-        <path d="M21 52 v-6"/>
-      </g>
-    </svg>
-    <h2 class="wordmark wordmark-small">COURT STANDS ADJOURNED</h2>
-    <p class="standby-sub">The top six return at 16:45 · The Tribunal</p>
-  </section>
-
-</main>
-
-<div class="dock" id="dock" hidden>
-  <div class="rail" id="rail"></div>
-  <div class="transport">
-    <button id="btn-prev" title="Previous case (←)">⟨ Prev</button>
-    <button id="btn-pause" title="Pause / resume (Space)">Pause</button>
-    <button id="btn-next" title="Next case (→)">Next ⟩</button>
-    <span class="dock-status record-label" id="dock-status">Standby</span>
-    <span class="dock-keys record-label">Space pause · ←/→ cases · H dock · F fullscreen · M mute · S standby</span>
   </div>
-</div>
 
-<script src="app.js"></script>
+  <footer class="bar mono">
+    <button id="btn-play" class="bar-btn bar-btn-main">▶ PLAY</button>
+    <button id="btn-restart" class="bar-btn">⟲ RESTART</button>
+    <button id="btn-skipcase" class="bar-btn">SKIP CASE →</button>
+    <span class="bar-progress" id="bar-progress">READY</span>
+    <span class="bar-voice" id="bar-voice">VOICE / READY</span>
+    <span class="bar-spacer"></span>
+    <button id="btn-mute" class="bar-btn">MUTE</button>
+    <button id="btn-full" class="bar-btn">FULLSCREEN</button>
+    <span class="bar-clock" id="bar-clock">--:--</span>
+  </footer>
+
+</div>
+<script src="app.js?v=19"></script>
 </body>
 </html>

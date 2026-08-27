@@ -12,3 +12,10 @@ hackathon-migration.tar.gz
 # opencode: keep agent personas, ignore local state
 .opencode/*
 !.opencode/agent/
+
+# Real event case data (team names, Q&A, voiced audio) stays private.
+# Sample cases are generated via broadcast/prepare.py instead.
+broadcast/segments/case_T*.json
+broadcast/segments/playlist.json
+broadcast/sources/
+nohup.out
