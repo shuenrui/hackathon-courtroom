@@ -1,4 +1,4 @@
-# hackathon-judging
+# hackathon-courtroom
 
 **An AI-agent courtroom for hackathon judging.** Built for the Devin × Claw Collective × Qwen Hackathon (*#BuildForMsia*, 23 August 2026, Kuala Lumpur) — and it ran the real show: 40+ submitted cases judged by a panel of LLM jurors over Discord, every session voiced and livestreamed as it happened.
 
