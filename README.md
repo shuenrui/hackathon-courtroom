@@ -145,3 +145,7 @@ I built this for one event and iterated my way there — a cinematic "courtroom 
 ## Requirements
 
 Python 3.11+. `requirements.txt` pins the runtime deps (requests, jsonschema, gspread, discord.py, edge-tts, faster-whisper, yt-dlp). Local demo-video transcription also needs `ffmpeg` on the box. ElevenLabs hosting of the broadcast is optional — see the getting-started guide.
+
+## License
+
+[MIT](LICENSE) — take it, run your own courtroom, change whatever you like. Attribution is the only ask.
