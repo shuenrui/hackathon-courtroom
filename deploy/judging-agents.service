@@ -6,11 +6,11 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=oem
-WorkingDirectory=/home/oem/hackathon-judging
+WorkingDirectory=/home/oem/hackathon-courtroom
 Environment=PYTHONUNBUFFERED=1
 Environment=PATH=/home/oem/.local/bin:/home/oem/.opencode/bin:/home/oem/.hermes/hermes-agent/venv/bin:/usr/local/bin:/usr/bin:/bin
-EnvironmentFile=/home/oem/hackathon-judging/.env
-ExecStart=/home/oem/hackathon-judging/.venv/bin/python -m judging.agents.runner
+EnvironmentFile=/home/oem/hackathon-courtroom/.env
+ExecStart=/home/oem/hackathon-courtroom/.venv/bin/python -m judging.agents.runner
 Restart=always
 RestartSec=5
 

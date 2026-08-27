@@ -6,9 +6,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=opi
-WorkingDirectory=/home/opi/hackathon-judging
+WorkingDirectory=/home/opi/hackathon-courtroom
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/home/opi/hackathon-judging/.venv/bin/python -m judging.discordx.runner
+ExecStart=/home/opi/hackathon-courtroom/.venv/bin/python -m judging.discordx.runner
 Restart=always
 RestartSec=5
 

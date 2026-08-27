@@ -20,8 +20,8 @@ Clock accuracy matters — the Q&A clock and all logs trust this machine's time.
 ## 2. Repo + Python deps
 
 ```bash
-git clone https://github.com/shuenrui/hackathon-judging.git
-cd hackathon-judging
+git clone https://github.com/shuenrui/hackathon-courtroom.git
+cd hackathon-courtroom
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 curl -fsSL https://opencode.ai/install | bash
 opencode --version

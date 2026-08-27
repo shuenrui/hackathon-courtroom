@@ -17,7 +17,7 @@ Work through it in order; each step builds on the last.
 | Any static host (we used ifhost) | the broadcast site | varies |
 
 ```bash
-git clone <this repo> && cd hackathon-judging
+git clone https://github.com/shuenrui/hackathon-courtroom.git && cd hackathon-courtroom
 pip install -r requirements.txt
 cp .env.example .env   # fill it in as you go
 ```
